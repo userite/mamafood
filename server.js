@@ -1,6 +1,7 @@
 // ============================================
 // МАМАФООД Backend Server
 // Express API server for PostgreSQL database
+// ВЕРСИЯ 2: Коригирани CREATE TABLE заявки
 // ============================================
 
 const express = require('express');
@@ -23,16 +24,93 @@ const pool = new Pool({
     }
 });
 
-// Тест на връзката
-(async () => {
+// ============================================
+// Database Initialization
+// ============================================
+
+const initializeDatabase = async () => {
+    const client = await pool.connect();
     try {
-        const client = await pool.connect();
-        console.log('✅ Database connection successful');
-        client.release();
+        console.log('✅ Database connection successful. Initializing tables...');
+
+        // Таблица 1: push_subscriptions
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS push_subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    child_code VARCHAR(50) NOT NULL,
+                    endpoint TEXT NOT NULL,
+                    p256dh VARCHAR(255) NOT NULL,
+                    auth VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (child_code, endpoint)
+                );
+            `);
+            console.log('✅ Table "push_subscriptions" is ready.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "push_subscriptions" table:', e.message);
+        }
+
+        // Таблица 2: children
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS children (
+                    child_code VARCHAR(50) PRIMARY KEY,
+                    name VARCHAR(255),
+                    last_accessed TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            console.log('✅ Table "children" is ready.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "children" table:', e.message);
+        }
+
+        // Таблица 3: records
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS records (
+                    id SERIAL PRIMARY KEY,
+                    child_code VARCHAR(50) REFERENCES children(child_code) ON DELETE CASCADE,
+                    record_number INT NOT NULL,
+                    amount NUMERIC(10, 2) NOT NULL,
+                    situation TEXT,
+                    datetime TIMESTAMPTZ NOT NULL,
+                    notes TEXT
+                );
+            `);
+            console.log('✅ Table "records" is ready.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "records" table:', e.message);
+        }
+        
+        // Таблица 4: device_access
+        try {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS device_access (
+                    id SERIAL PRIMARY KEY,
+                    child_code VARCHAR(50) REFERENCES children(child_code) ON DELETE CASCADE,
+                    device_id VARCHAR(255) NOT NULL,
+                    device_name VARCHAR(255),
+                    last_sync TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (child_code, device_id)
+                );
+            `);
+            console.log('✅ Table "device_access" is ready.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "device_access" table:', e.message);
+        }
+
     } catch (err) {
-        console.error('⚠️ Database connection error:', err.message);
+        console.error('⚠️ Database connection or initialization error:', err.message);
+    } finally {
+        if (client) {
+            client.release();
+        }
     }
-})();
+};
+
+initializeDatabase();
+
 
 // Middleware
 app.use(cors({
@@ -80,22 +158,6 @@ if (VAPID_PUBLIC && VAPID_PRIVATE && VAPID_PUBLIC.length > 50) {
 } else {
     console.warn('⚠️ Push Notifications disabled - invalid VAPID keys');
 }
-
-(async () => {
-    try {
-        await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
-            id SERIAL PRIMARY KEY,
-            child_code VARCHAR(50) NOT NULL,
-            endpoint TEXT NOT NULL,
-            p256dh VARCHAR(255) NOT NULL,
-            auth VARCHAR(255) NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (child_code, endpoint)
-        );`);
-    } catch (e) {
-        console.error('Failed ensuring push_subscriptions table:', e.message);
-    }
-})();
 
 app.get('/api/push/publicKey', (req, res) => {
     if (VAPID_PUBLIC && VAPID_PUBLIC.length > 50) {
