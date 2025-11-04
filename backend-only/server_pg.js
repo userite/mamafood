@@ -70,7 +70,8 @@ app.use(cors({
         'https://pci.inex-project.net',
         'http://pci.inex-project.net',
         'http://localhost:3000',
-        'http://localhost:8000'
+        'http://localhost:8000',
+        'https://mamafood.onrender.com'
     ],
     credentials: true
 }));
