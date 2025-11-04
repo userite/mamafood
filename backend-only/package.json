@@ -2,22 +2,23 @@
   "name": "mamafood-backend",
   "version": "1.0.0",
   "description": "МАМАФООД Backend API",
-  "main": "server.js",
+  "main": "server_pg.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server_pg.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "mamafood",
     "api",
-    "backend"
+    "backend",
+    "postgresql"
   ],
   "author": "Габи и Кай",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "mysql2": "^3.11.5",
+    "pg": "^8.11.3",
     "web-push": "^3.6.7"
   },
   "engines": {
