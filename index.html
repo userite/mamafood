@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4A90E2">
+    <meta name="description" content="МАМАФООД - Приложение за следеене на съхранение на кърма">
+    <title>МАМАФООД</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🍼</text></svg>">
+    <script src="i18n.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 data-i18n="appName">🍼 МАМАФООД</h1>
+            </div>
+            <div class="header-right">
+                <button class="btn-child-code" onclick="showChildCode()" title="Код на детето" id="btnChildCode">
+                    👶
+                </button>
+                <div class="lang-buttons">
+                    <button class="btn-lang" onclick="changeLanguage('bg')" title="Български">bg</button>
+                    <button class="btn-lang" onclick="changeLanguage('en')" title="English">en</button>
+                </div>
+                <button class="btn-install" id="btnInstall" onclick="showInstallInstructions()" title="Add to Home Screen" style="display: none;">
+                    📱
+                </button>
+                <button class="btn-lang" id="btnPushStatus" onclick="testPush()" title="Push notifications" style="display: inline-flex;">🔔</button>
+                <button class="btn-refresh" id="btnRefresh" onclick="refreshData()" title="Опресни данните">⟳</button>
+                <button class="btn-add" id="btnAdd" aria-label="Добави нов запис">+</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Раздел за кърма -->
+            <div id="milk-section">
+                <!-- Записи -->
+                <section class="records-section" id="recordsSection">
+                    <h2 data-i18n="currentPortions">Текущи порции</h2>
+                    <div id="recordsList" class="records-list">
+                        <!-- Records will be dynamically inserted here -->
+                    </div>
+                    <p class="empty-state" id="emptyState" data-i18n="noRecords">Няма записи. Добавете първа порция.</p>
+                </section>
+
+                <!-- Статистика -->
+            <section class="stats-section">
+                <h3 data-i18n="statistics">Статистика</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-number" id="totalRecords">0</span>
+                        <span class="stat-label" data-i18n="totalPortions">Общо порции</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="activeRecords">0</span>
+                        <span class="stat-label" data-i18n="active">Активни</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="expiringRecords">0</span>
+                        <span class="stat-label" data-i18n="expiringSoon">Изтичат скоро</span>
+                    </div>
+                </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Modal за добавяне/редактиране -->
+        <div class="modal" id="recordModal">
+            <div class="modal-content">
+                <button class="modal-close" id="modalClose">&times;</button>
+                <h2 id="modalTitle" data-i18n="addPortion">Добавяне на нова порция</h2>
+                <form id="recordForm" class="record-form">
+                    <div class="form-group">
+                        <label for="amount" data-i18n="amountLabel">Количество (ml)</label>
+                        <input type="number" id="amount" name="amount" min="1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="situation" data-i18n="situationLabel">Ситуация</label>
+                        <select id="situation" name="situation" required>
+                            <option value=""></option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="datetime" data-i18n="datetimeLabel">Дата и час на изцеждане</label>
+                        <input type="datetime-local" id="datetime" name="datetime" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes" data-i18n="notesLabel">Бележки (по избор)</label>
+                        <textarea id="notes" name="notes" rows="3" data-i18n-placeholder="notesPlaceholder"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" data-i18n="save">Запази</button>
+                        <button type="button" class="btn btn-secondary" id="btnCancel" data-i18n="cancel">Отказ</button>
+                    </div>
+
+                    <input type="hidden" id="recordId" name="recordId">
+                </form>
+            </div>
+        </div>
+        
+        <!-- Install Instructions Modal -->
+        <div class="modal" id="installModal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeInstallModal()">&times;</button>
+                <h2 id="installTitle">Добави към начален екран</h2>
+                <div id="installInstructions" style="padding: 1rem 0;">
+                    <!-- Instructions will be shown here -->
+                </div>
+                <button class="btn btn-primary" onclick="closeInstallModal()">Разбрах</button>
+            </div>
+        </div>
+
+        <!-- Child Code Modal -->
+        <div class="modal" id="childCodeModal">
+            <div class="modal-content">
+                <h2>👶 Код на детето</h2>
+                <p style="margin: 1rem 0;">Използвайте този код за да споделяте данни между устройства:</p>
+                <div style="background: #f0f0f0; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                    <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); text-align: center; font-family: monospace;" id="childCodeDisplay">...</div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-light); text-align: center;">
+                    Въведете същия код на други устройства за споделена база
+                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button class="btn btn-primary" onclick="copyChildCode()">📋 Копирай</button>
+                    <button class="btn btn-secondary" onclick="changeChildCode()">✏️ Смени код</button>
+                    <button class="btn btn-secondary" onclick="exportData()">⬇️ Експорт</button>
+                    <label for="importFile" class="btn btn-secondary" style="text-align: center; cursor: pointer;">⬆️ Импорт</label>
+                    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this.files[0])" />
+                </div>
+                <button class="btn btn-secondary" onclick="closeChildCodeModal()" style="margin-top: 0.5rem; width: 100%;">Затвори</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app_v2.js?v=6"></script>
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
+

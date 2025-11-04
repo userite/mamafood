@@ -1,0 +1,25 @@
+{
+  "name": "mamafood",
+  "version": "1.0.0",
+  "description": "МАМАФООД - Приложение за следеене на съхранение на кърма",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test_connection.js",
+    "setup-db": "node create_tables.js"
+  },
+  "keywords": [
+    "mamafood",
+    "breast-milk",
+    "baby",
+    "tracker"
+  ],
+  "author": "Габи и Кай",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mysql2": "^3.6.5",
+    "web-push": "^3.6.7"
+  }
+}

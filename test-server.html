@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест сървър - МАМАФООД</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 { color: #4A90E2; }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4A90E2;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        .btn:hover { background: #357ABD; }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🍼 МАМАФООД - Тест Сървър</h1>
+        <p>Здравейте! Това е помощна страница за стартиране на тестов сървър.</p>
+        
+        <h2>📝 Инструкции:</h2>
+        
+        <h3>Windows:</h3>
+        <p>Отворете PowerShell и изпълнете:</p>
+        <code>python -m http.server 8000</code>
+        <p>или</p>
+        <code>php -S localhost:8000</code>
+        
+        <h3>Mac / Linux:</h3>
+        <p>Отворете Terminal и изпълнете:</p>
+        <code>python3 -m http.server 8000</code>
+        <p>или</p>
+        <code>php -S localhost:8000</code>
+        
+        <h3>Node.js (всяка платформа):</h3>
+        <code>npx http-server -p 8000</code>
+        
+        <hr>
+        
+        <h2>✅ След това:</h2>
+        <p>Отворете браузъра и отидете на:</p>
+        <p><a href="http://localhost:8000/" class="btn">http://localhost:8000/</a></p>
+        
+        <hr>
+        
+        <h2>📱 За мобилен тест:</h2>
+        <p>1. Намерете IP адреса на компютъра си:</p>
+        <ul>
+            <li>Windows: <code>ipconfig</code> → IPv4 Address</li>
+            <li>Mac/Linux: <code>ifconfig</code> или <code>ip addr</code></li>
+        </ul>
+        <p>2. От мобилното устройство отидете на: <code>http://ВАШИЯ-IP:8000</code></p>
+        
+        <p><strong>Важно:</strong> Компютърът и телефонът трябва да са на същата Wi-Fi мрежа!</p>
+    </div>
+</body>
+</html>
+
