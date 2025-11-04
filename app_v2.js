@@ -214,7 +214,7 @@ function closeModal() {
 // API Configuration
 const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3000'
-    : window.location.origin;
+    : 'https://mamafood.onrender.com';
 
 // Функция за получаване на следващия номер на порцията от сървъра
 async function getNextRecordNumber(childCode) {
