@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест - МАМАФООД</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        h1 { margin-bottom: 20px; }
+        .status {
+            background: white;
+            color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .btn {
+            background: white;
+            color: #4A90E2;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍼 МАМАФООД - Тест</h1>
+        
+        <div class="status" id="status">
+            Проверявам файлове...
+        </div>
+        
+        <button class="btn" onclick="testFile('app.js')">Тест app.js</button>
+        <button class="btn" onclick="testFile('styles.css')">Тест styles.css</button>
+        <button class="btn" onclick="window.location.href='index.html'">Отвори главно приложение</button>
+        
+        <div id="results" style="margin-top: 20px;"></div>
+    </div>
+    
+    <script>
+        function testFile(filename) {
+            const status = document.getElementById('status');
+            const results = document.getElementById('results');
+            
+            status.textContent = `Тествам ${filename}...`;
+            
+            fetch(filename)
+                .then(response => {
+                    if (response.ok) {
+                        status.innerHTML = `<span style="color: green;">✓ ${filename} - OK</span>`;
+                        results.innerHTML += `<p>✓ ${filename} - Зареден успешно</p>`;
+                    } else {
+                        status.innerHTML = `<span style="color: red;">✗ ${filename} - Грешка!</span>`;
+                        results.innerHTML += `<p style="color: red;">✗ ${filename} - ${response.status} ${response.statusText}</p>`;
+                    }
+                })
+                .catch(error => {
+                    status.innerHTML = `<span style="color: red;">✗ ${filename} - Файлът не се намира!</span>`;
+                    results.innerHTML += `<p style="color: red;">✗ ${filename} - ${error.message}</p>`;
+                });
+        }
+        
+        // Auto-test на зареждане
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const status = document.getElementById('status');
+                status.innerHTML = 'Готово! Натиснете бутоните за тест.';
+            }, 500);
+        });
+    </script>
+</body>
+</html>
+

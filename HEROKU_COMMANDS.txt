@@ -1,0 +1,40 @@
+==========================================
+КОМАНДИ ЗА HEROKU ДЕПЛОЙ
+Изпълни в PowerShell в backend-only директорията
+==========================================
+
+1. Логни се в Heroku (първи път):
+heroku login
+
+2. Създай Heroku приложение:
+heroku create mamafood-api
+(или heroku create за автоматично име)
+
+3. Конфигурирай database данни:
+heroku config:set DB_HOST=78.142.63.8
+heroku config:set DB_USER=inex_mamafood_user
+heroku config:set DB_PASSWORD=Parola_123!@#
+heroku config:set DB_NAME=inex_deklarado
+heroku config:set NODE_ENV=production
+
+4. Деплой:
+git push heroku master
+(или git push heroku main ако използваш main branch)
+
+5. Проверка:
+heroku info
+
+6. Виж логове:
+heroku logs --tail
+
+==========================================
+СЛЕД ДЕПЛОЯ:
+1. Запиши Heroku URL (напр. https://mamafood-api.herokuapp.com)
+2. Промени в app.js реда с API_BASE на твоя URL
+3. Качи frontend файловете на pci.inex-project.net
+
+==========================================
+
+
+
+

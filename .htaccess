@@ -1,0 +1,38 @@
+# .htaccess за cPanel/Shared Hosting
+# Само ако е необходимо - обикновено cPanel Node.js приложенията се грижат автоматично
+
+RewriteEngine On
+RewriteBase /
+
+# Serve static files directly
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# API routes - proxy към Node.js (ако е необходимо)
+# RewriteRule ^api/(.*)$ http://localhost:PORT/api/$1 [P,L]
+
+# Fallback към index.html за SPA
+RewriteRule ^ index.html [L]
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
+
+
+
+
