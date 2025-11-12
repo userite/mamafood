@@ -4,6 +4,13 @@
 // ВЕРСИЯ 2: Коригирани CREATE TABLE заявки
 // ============================================
 
+// Зареждане на .env файл (ако съществува)
+try {
+    require('dotenv').config();
+} catch (e) {
+    // dotenv не е инсталиран, но това е OK в production
+}
+
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -17,9 +24,17 @@ const PORT = process.env.PORT || 3000;
 // Configuration
 // ============================================
 
+// Проверка на DATABASE_URL
+if (!process.env.DATABASE_URL) {
+    console.error('❌ ГРЕШКА: DATABASE_URL не е зададен!');
+    console.error('   Създай .env файл с: DATABASE_URL=postgresql://username:password@host:port/database');
+    console.error('   Или задай environment variable DATABASE_URL');
+    process.exit(1);
+}
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
+    ssl: process.env.DATABASE_URL.includes('localhost') ? false : {
         rejectUnauthorized: false
     }
 });
@@ -29,8 +44,10 @@ const pool = new Pool({
 // ============================================
 
 const initializeDatabase = async () => {
-    const client = await pool.connect();
+    let client;
     try {
+        console.log('Опит за свързване с базата данни...');
+        client = await pool.connect();
         console.log('✅ Database connection successful. Initializing tables...');
 
         // Таблица 1: push_subscriptions
@@ -101,7 +118,30 @@ const initializeDatabase = async () => {
         }
 
     } catch (err) {
-        console.error('⚠️ Database connection or initialization error:', err.message);
+        console.error('\n❌ ГРЕШКА при свързване с базата данни:');
+        console.error('   ', err.message);
+        
+        if (err.code === 'ENOTFOUND') {
+            console.error('\n⚠️  Hostname не може да бъде намерен!');
+            console.error('   Възможни причини:');
+            console.error('   1. Базата данни в Render.com е спряна (free tier се спира след неактивност)');
+            console.error('   2. Базата данни е изтрита');
+            console.error('   3. Connection string-ът е неправилен');
+            console.error('\n   Решение:');
+            console.error('   - Провери Render.com dashboard дали базата съществува');
+            console.error('   - Ако е спряна, стартирай я от Render dashboard');
+            console.error('   - Вземи нов connection string от Render dashboard');
+            console.error('   - Или използвай локална PostgreSQL база');
+        } else if (err.code === 'ECONNREFUSED') {
+            console.error('\n⚠️  Връзката е отказана!');
+            console.error('   Провери дали PostgreSQL сървърът работи');
+        } else if (err.code === '28P01') {
+            console.error('\n⚠️  Грешка при автентикация!');
+            console.error('   Провери username и password в DATABASE_URL');
+        }
+        
+        console.error('\n   Текущ DATABASE_URL:', process.env.DATABASE_URL ? 
+            process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@') : 'не е зададен');
     } finally {
         if (client) {
             client.release();
@@ -114,14 +154,33 @@ initializeDatabase();
 
 // Middleware
 app.use(cors({
-    origin: [
-        'https://pci.inex-project.net',
-        'http://pci.inex-project.net',
-        'http://localhost:3000',
-        'http://localhost:8000'
-    ],
+    origin: function (origin, callback) {
+        // Разрешаваме заявки без origin (например от Postman, curl, или file://)
+        if (!origin) {
+            return callback(null, true);
+        }
+        
+        // Разрешаваме локални origins
+        const allowedOrigins = [
+            'https://pci.inex-project.net',
+            'http://pci.inex-project.net',
+            'http://localhost:3000',
+            'http://localhost:8000',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:8000'
+        ];
+        
+        // Разрешаваме локални мрежи (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+        const isLocalNetwork = origin.match(/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/);
+        
+        if (allowedOrigins.includes(origin) || isLocalNetwork) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
-} ));
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -137,6 +196,21 @@ app.use((err, req, res, next) => {
 // ============================================
 // API Routes
 // ============================================
+
+// Root endpoint - предотвратява 404 грешки
+app.get('/', (req, res) => {
+    res.json({ 
+        service: 'МАМАФООД Backend API',
+        version: '2.0',
+        status: 'running',
+        endpoints: {
+            health: '/api/health',
+            records: '/api/records/:child_code',
+            children: '/api/children/:child_code',
+            push: '/api/push/publicKey'
+        }
+    });
+});
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -211,13 +285,33 @@ app.post('/api/push/test', async (req, res) => {
 app.get('/api/records/:child_code', async (req, res) => {
     try {
         const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
         const { rows } = await pool.query(
-            'SELECT * FROM records WHERE child_code = $1 ORDER BY datetime DESC',
-            [child_code]
+            'SELECT * FROM records WHERE UPPER(child_code) = $1 ORDER BY datetime DESC',
+            [upperChildCode]
         );
         res.json(rows);
     } catch (error) {
         console.error('Error fetching records:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Endpoint за получаване на следващия номер на запис
+app.get('/api/records/:child_code/next-number', async (req, res) => {
+    try {
+        const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
+        const { rows } = await pool.query(
+            'SELECT MAX(record_number) as max_number FROM records WHERE UPPER(child_code) = $1',
+            [upperChildCode]
+        );
+        const maxNumber = rows[0]?.max_number || 0;
+        res.json({ record_number: maxNumber + 1 });
+    } catch (error) {
+        console.error('Error getting next record number:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -322,13 +416,16 @@ app.post('/api/children', async (req, res) => {
 app.get('/api/children/:child_code', async (req, res) => {
     try {
         const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
         const { rows } = await pool.query(
-            'SELECT * FROM children WHERE child_code = $1',
-            [child_code]
+            'SELECT * FROM children WHERE UPPER(child_code) = $1',
+            [upperChildCode]
         );
         
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Child not found' });
+            // Връщаме празен обект вместо 404, за да не причинява грешки във frontend-а
+            return res.json({ child_code: upperChildCode, name: null, last_accessed: null });
         }
         
         res.json(rows[0]);

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Задаване на код KAI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #4A90E2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #357ABD;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Задаване на код "KAI"</h1>
+    
+    <div class="info">
+        <p><strong>Текущ код:</strong> <span id="currentCode">-</span></p>
+        <p><strong>Статус:</strong> <span id="status">Готов</span></p>
+    </div>
+    
+    <button onclick="setKAI()">Задай код "KAI"</button>
+    <button onclick="checkCode()">Провери текущ код</button>
+    <button onclick="openApp()">Отвори приложението</button>
+    
+    <script>
+        function checkCode() {
+            const code = localStorage.getItem('mamafood_child_code') || 'няма';
+            document.getElementById('currentCode').textContent = code;
+            document.getElementById('status').textContent = code === 'KAI' ? '✅ Правилен код!' : '❌ Неправилен код';
+        }
+        
+        function setKAI() {
+            localStorage.setItem('mamafood_child_code', 'KAI');
+            document.getElementById('status').textContent = '✅ Кодът е зададен на "KAI"!';
+            checkCode();
+        }
+        
+        function openApp() {
+            window.location.href = 'index.html';
+        }
+        
+        // Проверка при зареждане
+        checkCode();
+    </script>
+</body>
+</html>
+

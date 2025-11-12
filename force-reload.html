@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Принудително презареждане</title>
+    <meta http-equiv="refresh" content="2;url=index.html?v=10&t=<?php echo time(); ?>">
+    <script>
+        // Изчистване на всичко
+        (async function() {
+            // Service Workers
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const reg of registrations) {
+                    await reg.unregister();
+                }
+            }
+            
+            // Cache
+            const cacheNames = await caches.keys();
+            for (const name of cacheNames) {
+                await caches.delete(name);
+            }
+            
+            // Презареждане
+            setTimeout(() => {
+                window.location.href = 'index.html?v=10&t=' + Date.now();
+            }, 1000);
+        })();
+    </script>
+</head>
+<body>
+    <h1>Изчистване на кеша и презареждане...</h1>
+    <p>Моля изчакайте...</p>
+</body>
+</html>
+

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Изчистване на кеш</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #4A90E2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #357ABD;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Изчистване на кеш и Service Worker</h1>
+    
+    <div class="info">
+        <p><strong>Статус:</strong> <span id="status">Готов</span></p>
+    </div>
+    
+    <button onclick="clearCache()">Изчисти кеш</button>
+    <button onclick="unregisterSW()">Премахни Service Worker</button>
+    <button onclick="clearAll()">Изчисти всичко</button>
+    <button onclick="reload()">Презареди приложението</button>
+    
+    <script>
+        async function clearCache() {
+            document.getElementById('status').textContent = 'Изчистване на кеш...';
+            try {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+                document.getElementById('status').textContent = '✅ Кешът е изчистен!';
+            } catch (error) {
+                document.getElementById('status').textContent = '❌ Грешка: ' + error.message;
+            }
+        }
+        
+        async function unregisterSW() {
+            document.getElementById('status').textContent = 'Премахване на Service Worker...';
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(
+                    registrations.map(registration => registration.unregister())
+                );
+                document.getElementById('status').textContent = '✅ Service Worker е премахнат!';
+            } catch (error) {
+                document.getElementById('status').textContent = '❌ Грешка: ' + error.message;
+            }
+        }
+        
+        async function clearAll() {
+            document.getElementById('status').textContent = 'Изчистване на всичко...';
+            await clearCache();
+            await unregisterSW();
+            localStorage.clear();
+            document.getElementById('status').textContent = '✅ Всичко е изчистено!';
+        }
+        
+        function reload() {
+            window.location.href = 'index.html?v=' + Date.now();
+        }
+    </script>
+</body>
+</html>
+
