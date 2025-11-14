@@ -170,7 +170,9 @@ app.post('/api/push/subscribe', async (req, res) => {
 app.post('/api/push/test', async (req, res) => {
     try {
         const { child_code, title, body } = req.body;
-        const result = await pool.query('SELECT * FROM push_subscriptions WHERE child_code = $1', [child_code]);
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = (child_code || '').toUpperCase();
+        const result = await pool.query('SELECT * FROM push_subscriptions WHERE UPPER(child_code) = UPPER($1)', [upperChildCode]);
         const payload = JSON.stringify({ title: title || 'МАМАФООД', body: body || 'Тестово известие' });
         const results = [];
         for (const row of result.rows) {
@@ -194,10 +196,13 @@ app.post('/api/push/test', async (req, res) => {
 app.get('/api/records/:child_code', async (req, res) => {
     try {
         const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
         const result = await pool.query(
-            'SELECT * FROM records WHERE child_code = $1 ORDER BY datetime DESC',
-            [child_code]
+            'SELECT * FROM records WHERE UPPER(child_code) = UPPER($1) ORDER BY datetime DESC',
+            [upperChildCode]
         );
+        console.log(`[API] Заявка за записи за код: "${upperChildCode}", Намерени: ${result.rows.length} записа`);
         res.json(result.rows);
     } catch (error) {
         console.error('Error fetching records:', error);
@@ -209,9 +214,11 @@ app.get('/api/records/:child_code', async (req, res) => {
 app.get('/api/records/:child_code/next-number', async (req, res) => {
     try {
         const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
         const result = await pool.query(
-            'SELECT COALESCE(MAX(record_number), 0) + 1 AS next_number FROM records WHERE child_code = $1',
-            [child_code]
+            'SELECT COALESCE(MAX(record_number), 0) + 1 AS next_number FROM records WHERE UPPER(child_code) = UPPER($1)',
+            [upperChildCode]
         );
         const nextNumber = result.rows[0]?.next_number || 1;
         res.json({ record_number: nextNumber });
@@ -233,32 +240,33 @@ app.post('/api/records', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         
-        // Ensure child exists
+        // Ensure child exists (case-insensitive)
+        const upperChildCode = (child_code || '').toUpperCase();
         const childCheck = await client.query(
-            'SELECT child_code FROM children WHERE child_code = $1',
-            [child_code]
+            'SELECT child_code FROM children WHERE UPPER(child_code) = UPPER($1)',
+            [upperChildCode]
         );
         
         if (childCheck.rows.length === 0) {
             await client.query(
                 'INSERT INTO children (child_code, last_accessed) VALUES ($1, NOW())',
-                [child_code]
+                [upperChildCode]
             );
-            console.log(`✅ Created child: ${child_code}`);
+            console.log(`✅ Created child: ${upperChildCode}`);
         } else {
             await client.query(
-                'UPDATE children SET last_accessed = NOW() WHERE child_code = $1',
-                [child_code]
+                'UPDATE children SET last_accessed = NOW() WHERE UPPER(child_code) = UPPER($1)',
+                [upperChildCode]
             );
         }
         
         const result = await client.query(
             'INSERT INTO records (child_code, record_number, amount, situation, datetime, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-            [child_code, record_number, amount, situation, datetime, notes || null]
+            [upperChildCode, record_number, amount, situation, datetime, notes || null]
         );
         
         await client.query('COMMIT');
-        console.log(`✅ Added record #${record_number} for child ${child_code}`);
+        console.log(`✅ Added record #${record_number} for child ${upperChildCode}`);
         
         res.json({ id: result.rows[0].id, ...req.body });
     } catch (error) {
@@ -324,9 +332,11 @@ app.post('/api/children', async (req, res) => {
 app.get('/api/children/:child_code', async (req, res) => {
     try {
         const { child_code } = req.params;
+        // Конвертиране в главни букви за case-insensitive търсене
+        const upperChildCode = child_code.toUpperCase();
         const result = await pool.query(
-            'SELECT * FROM children WHERE child_code = $1',
-            [child_code]
+            'SELECT * FROM children WHERE UPPER(child_code) = UPPER($1)',
+            [upperChildCode]
         );
         
         if (result.rows.length === 0) {

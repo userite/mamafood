@@ -182,8 +182,14 @@ async function loadRecords() {
         const upperChildCode = (childCode || '').toUpperCase();
         console.log(`[loadRecords] Зареждане на записи за код: ${upperChildCode}`);
         console.log(`[loadRecords] API_BASE: ${API_BASE}`);
+        console.log(`[loadRecords] Window location: ${window.location.href}`);
+        console.log(`[loadRecords] Window origin: ${window.location.origin}`);
+        console.log(`[loadRecords] Window hostname: ${window.location.hostname}`);
         
-        response = await fetch(`${API_BASE}/api/records/${upperChildCode}`);
+        const apiUrl = `${API_BASE}/api/records/${upperChildCode}`;
+        console.log(`[loadRecords] Full API URL: ${apiUrl}`);
+        
+        response = await fetch(apiUrl);
         console.log(`[loadRecords] Response status: ${response.status}`);
         
         if (response.ok) {
@@ -209,11 +215,48 @@ async function loadRecords() {
                 console.warn(`[loadRecords] Дублирани ID-та:`, duplicates);
             }
             
-            records = apiRecords;
+            // Филтриране на записите по текущия child_code (за всеки случай)
+            const upperChildCode = (childCode || '').toUpperCase();
+            console.log(`[loadRecords] Филтриране на записи за код: "${upperChildCode}"`);
+            console.log(`[loadRecords] Детайли за всички записи от API:`, apiRecords.map(r => ({
+                id: r.id,
+                child_code: r.child_code,
+                child_code_type: typeof r.child_code,
+                child_code_upper: (r.child_code || '').toUpperCase(),
+                matches: ((r.child_code || '').toUpperCase() === upperChildCode)
+            })));
+            
+            records = apiRecords.filter(r => {
+                const recordCode = (r.child_code || '').toUpperCase();
+                const matches = recordCode === upperChildCode;
+                if (!matches) {
+                    console.log(`[loadRecords] Запис ${r.id} пропуснат: код "${recordCode}" !== "${upperChildCode}"`);
+                }
+                return matches;
+            });
+            console.log(`[loadRecords] Филтрирани ${records.length} записа за код ${upperChildCode} (от ${apiRecords.length} общо от API)`);
             loadedFromAPI = true;
             
-            // Запазване локално като fallback
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            // Запазване локално като fallback (запазваме всички записи, не само за текущия код)
+            // За да не загубим данни за други кодове
+            const allStoredRecords = localStorage.getItem(STORAGE_KEY);
+            let allRecords = [];
+            if (allStoredRecords) {
+                try {
+                    allRecords = JSON.parse(allStoredRecords);
+                    // Премахваме старите записи за текущия код и добавяме новите
+                    allRecords = allRecords.filter(r => {
+                        const recordCode = (r.child_code || '').toUpperCase();
+                        return recordCode !== upperChildCode;
+                    });
+                } catch (e) {
+                    console.warn('[loadRecords] Грешка при парсване на старите записи:', e);
+                    allRecords = [];
+                }
+            }
+            // Добавяме новите записи за текущия код
+            allRecords = [...allRecords, ...records];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
             
             console.log(`[loadRecords] Извикване на renderRecords() с ${records.length} записа`);
             renderRecords();
@@ -232,7 +275,14 @@ async function loadRecords() {
             const storedRecords = localStorage.getItem(STORAGE_KEY);
             if (storedRecords) {
                 try {
-                    records = JSON.parse(storedRecords);
+                    const allRecords = JSON.parse(storedRecords);
+                    // Филтриране по текущия child_code
+                    const upperChildCode = (childCode || '').toUpperCase();
+                    records = allRecords.filter(r => {
+                        const recordCode = (r.child_code || '').toUpperCase();
+                        return recordCode === upperChildCode;
+                    });
+                    console.log(`[loadRecords] Заредени ${records.length} записа от localStorage за код ${upperChildCode} (от общо ${allRecords.length})`);
                 } catch (e) {
                     console.warn('[loadRecords] Грешка при парсване на localStorage:', e);
                     records = [];
@@ -252,7 +302,32 @@ async function loadRecords() {
 
 // Запазване на записите
 function saveRecords() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    // Запазваме всички записи в localStorage (за всички кодове)
+    // За да не загубим данни при смяна на код
+    const allStoredRecords = localStorage.getItem(STORAGE_KEY);
+    let allRecords = [];
+    
+    if (allStoredRecords) {
+        try {
+            allRecords = JSON.parse(allStoredRecords);
+        } catch (e) {
+            console.warn('[saveRecords] Грешка при парсване на старите записи:', e);
+            allRecords = [];
+        }
+    }
+    
+    // Премахваме старите записи за текущия код
+    const upperChildCode = (childCode || '').toUpperCase();
+    allRecords = allRecords.filter(r => {
+        const recordCode = (r.child_code || '').toUpperCase();
+        return recordCode !== upperChildCode;
+    });
+    
+    // Добавяме текущите записи (които са филтрирани по текущия код)
+    allRecords = [...allRecords, ...records];
+    
+    // Запазваме всички записи
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
     
     // Актуализиране на интерфейса
     renderRecords();
@@ -392,6 +467,11 @@ const getAPIBase = () => {
         hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
         return 'http://localhost:3000';
     }
+    // Ако е на inex-project.net или pci.inex-project.net, използвай същия домейн
+    if (hostname === 'inex-project.net' || hostname === 'pci.inex-project.net' || hostname.endsWith('.inex-project.net')) {
+        // Използвай origin (протокол + hostname + порт) за да работи и в поддиректории
+        return window.location.origin;
+    }
     // Иначе използвай production URL
     return 'https://mamafood.onrender.com';
 };
@@ -435,8 +515,10 @@ async function saveRecord() {
     }
     
     // Създаване на нов запис
+    const upperChildCode = (childCode || '').toUpperCase();
     const newRecord = {
         id: recordId || generateId(),
+        child_code: upperChildCode,
         amount: parseInt(amount),
         situation: situation,
         datetime: datetime,
@@ -446,10 +528,14 @@ async function saveRecord() {
     
     // Добавяне или актуализиране на записа
     if (recordId) {
-        // Редактиране - запазваме стария номер
+        // Редактиране - запазваме стария номер и child_code
         const existingRecord = records.find(r => String(r.id) === String(recordId));
         if (existingRecord) {
             newRecord.record_number = existingRecord.record_number || existingRecord.recordNumber;
+            // Запазваме child_code от съществуващия запис (ако има)
+            if (existingRecord.child_code) {
+                newRecord.child_code = existingRecord.child_code;
+            }
         }
         
         const index = records.findIndex(r => r.id === recordId);
@@ -601,9 +687,32 @@ function renderRecords() {
             recordsSection.style.display = 'block';
         }
         
-        // Показване или скриване на съобщението за празен списък
-        // Забележка: Секцията за текущи порции винаги се показва, дори когато няма записи
-        if (records.length === 0) {
+        const now = new Date();
+        const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+        
+        // Филтриране на записите по текущия child_code ПРЕДИ всичко друго
+        const upperChildCode = (childCode || '').toUpperCase();
+        console.log(`[renderRecords] Текущ код: "${upperChildCode}", Общо записи в масива: ${records.length}`);
+        console.log(`[renderRecords] Детайли за всички записи:`, records.map(r => ({
+            id: r.id,
+            child_code: r.child_code,
+            child_code_upper: (r.child_code || '').toUpperCase(),
+            matches: ((r.child_code || '').toUpperCase() === upperChildCode)
+        })));
+        
+        const filteredRecords = records.filter(r => {
+            const recordCode = (r.child_code || '').toUpperCase();
+            const matches = recordCode === upperChildCode;
+            if (!matches) {
+                console.log(`[renderRecords] Запис ${r.id} пропуснат: код "${recordCode}" !== "${upperChildCode}"`);
+            }
+            return matches;
+        });
+        
+        console.log(`[renderRecords] Филтриране: ${records.length} общо записа, ${filteredRecords.length} за код ${upperChildCode}`);
+        
+        // Показване или скриване на съобщението за празен списък СЛЕД филтрирането
+        if (filteredRecords.length === 0) {
             if (emptyState) emptyState.style.display = 'block';
             if (expiredSection) expiredSection.style.display = 'none';
             // Уверяваме се, че секцията за текущи порции се показва
@@ -616,16 +725,13 @@ function renderRecords() {
             if (emptyState) emptyState.style.display = 'none';
         }
         
-        const now = new Date();
-        const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
-        
         // Разделяне на активни и изтекли записи
         const activeRecords = [];
         const expiredRecords = [];
         const skippedRecords = [];
         
-        records.forEach((record, index) => {
-            console.log(`[renderRecords] Обработване на запис ${index + 1}/${records.length}: ID=${record.id}, situation=${record.situation}, datetime=${record.datetime}`);
+        filteredRecords.forEach((record, index) => {
+            console.log(`[renderRecords] Обработване на запис ${index + 1}/${filteredRecords.length}: ID=${record.id}, situation=${record.situation}, datetime=${record.datetime}`);
             
             if (!record || !record.situation || !record.datetime) {
                 console.warn(`[renderRecords] Запис ${record?.id} пропуснат: липсват полета`, {
@@ -712,12 +818,11 @@ function renderRecords() {
             expiry: new Date(new Date(r.datetime).getTime() + (situations.find(s => s.id === r.situation)?.validityHours || 0) * 60 * 60 * 1000)
         })));
         
-        // Изтриване на порции, изтекли преди повече от 2 дена
-        if (records.length > activeRecords.length + expiredRecords.length) {
-            const recordsToKeep = [...activeRecords, ...expiredRecords];
-            records = recordsToKeep;
-            saveRecords();
-        }
+        // Актуализиране на масива records - запазваме само записите за текущия код
+        // records вече е филтриран по текущия код, така че просто актуализираме с активните и изтеклите
+        records = [...activeRecords, ...expiredRecords];
+        // Запазваме всички записи (включително за други кодове) в localStorage
+        saveRecords();
         
         // Сортиране на активните записи по дата на изтичане (най-близките до изтичане първи)
         const sortedActiveRecords = [...activeRecords].sort((a, b) => {

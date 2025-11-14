@@ -7,6 +7,7 @@ const translations = {
         
         // Main sections
         currentPortions: 'Текущи порции',
+        expiredPortions: 'Изтекли порции',
         statistics: 'Статистика',
         totalPortions: 'Общо порции',
         active: 'Активни',
@@ -87,6 +88,7 @@ const translations = {
         
         // Main sections
         currentPortions: 'Current Portions',
+        expiredPortions: 'Expired Portions',
         statistics: 'Statistics',
         totalPortions: 'Total Portions',
         active: 'Active',
