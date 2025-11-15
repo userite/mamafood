@@ -989,15 +989,32 @@ function renderRecords() {
         const skippedRecords = [];
         
         filteredRecords.forEach((record, index) => {
-            console.log(`[renderRecords] Обработване на запис ${index + 1}/${filteredRecords.length}: ID=${record.id}, situation=${record.situation}, datetime=${record.datetime}`);
+            const recordDate = new Date(record.datetime);
+            const isValidDate = !isNaN(recordDate.getTime());
+            console.log(`[renderRecords] Обработване на запис ${index + 1}/${filteredRecords.length}:`, {
+                id: record.id,
+                child_code: record.child_code,
+                situation: record.situation,
+                datetime: record.datetime,
+                datetime_parsed: isValidDate ? recordDate.toISOString() : 'INVALID',
+                amount: record.amount,
+                record_number: record.record_number
+            });
             
             if (!record || !record.situation || !record.datetime) {
-                console.warn(`[renderRecords] Запис ${record?.id} пропуснат: липсват полета`, {
+                console.warn(`[renderRecords] ⚠️ Запис ${record?.id} пропуснат: липсват полета`, {
                     hasRecord: !!record,
                     hasSituation: !!record?.situation,
                     hasDatetime: !!record?.datetime
                 });
                 skippedRecords.push({ reason: 'missing fields', record });
+                return;
+            }
+            
+            // Проверка за валидна дата
+            if (isNaN(recordDate.getTime())) {
+                console.warn(`[renderRecords] ⚠️ Запис ${record.id} пропуснат: невалидна дата "${record.datetime}"`);
+                skippedRecords.push({ reason: 'invalid date', record });
                 return;
             }
             
