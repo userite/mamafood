@@ -188,9 +188,18 @@ async function loadRecords() {
         console.log(`[loadRecords] Window hostname: ${window.location.hostname}`);
         
         const apiUrl = `${API_BASE}/api/records/${upperChildCode}`;
-        console.log(`[loadRecords] Full API URL: ${apiUrl}`);
+        // Добавяме cache-busting параметър за да избегнем кеширане на стари данни
+        const cacheBuster = `?t=${Date.now()}`;
+        const fullUrl = `${apiUrl}${cacheBuster}`;
+        console.log(`[loadRecords] Full API URL: ${fullUrl}`);
         
-        response = await fetch(apiUrl);
+        response = await fetch(fullUrl, {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
         console.log(`[loadRecords] Response status: ${response.status}`);
         
         if (response.ok) {
