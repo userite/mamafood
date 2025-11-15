@@ -758,30 +758,41 @@ async function saveRecord() {
             try {
                 // Уверяваме се, че кодът е в главни букви
                 const upperChildCode = (childCode || '').toUpperCase();
-                console.log('[saveRecord] Изпращане на POST заявка към:', `${API_BASE}/api/records`);
-                console.log('[saveRecord] Данни за запис:', {
+                const requestUrl = `${API_BASE}/api/records`;
+                const requestData = {
                     child_code: upperChildCode,
                     record_number: newRecord.record_number,
                     amount: newRecord.amount,
                     situation: newRecord.situation,
                     datetime: newRecord.datetime,
                     notes: newRecord.notes
-                });
+                };
                 
-                const response = await fetch(`${API_BASE}/api/records`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        child_code: upperChildCode,
-                        record_number: newRecord.record_number,
-                        amount: newRecord.amount,
-                        situation: newRecord.situation,
-                        datetime: newRecord.datetime,
-                        notes: newRecord.notes
-                    })
-                });
+                console.log('[saveRecord] ========== ИЗПРАЩАНЕ НА POST ЗАЯВКА ==========');
+                console.log('[saveRecord] URL:', requestUrl);
+                console.log('[saveRecord] API_BASE:', API_BASE);
+                console.log('[saveRecord] Данни за запис:', requestData);
+                console.log('[saveRecord] JSON body:', JSON.stringify(requestData, null, 2));
+                console.log('[saveRecord] ===============================================');
+                
+                let response;
+                try {
+                    response = await fetch(requestUrl, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+                    console.log('[saveRecord] ✅ Заявката е изпратена успешно');
+                } catch (fetchError) {
+                    console.error('[saveRecord] ❌ Грешка при изпращане на fetch заявка:', fetchError);
+                    throw fetchError; // Прехвърляме грешката към catch блока
+                }
                 
                 console.log('[saveRecord] Response status:', response.status, response.statusText);
+                console.log('[saveRecord] Response headers:', Object.fromEntries(response.headers.entries()));
                 
                 if (response.ok) {
                     const serverRecord = await response.json();
