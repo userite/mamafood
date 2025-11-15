@@ -322,7 +322,7 @@ app.get('/api/records/:child_code', async (req, res) => {
                 amount: r.amount,
                 situation: r.situation,
                 datetime: r.datetime,
-                created_at: r.created_at
+                notes: r.notes || null
             })));
         }
         
