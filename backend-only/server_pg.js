@@ -44,22 +44,49 @@ const isRenderEnvironment = process.env.RENDER === 'true' ||
                              (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')) ||
                              (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('onrender.com'));
 
-// Priority 1: If we have Internal URL and we're on Render.com, use it (fastest, no SSL)
-if (process.env.DATABASE_URL_INTERNAL && isRenderEnvironment) {
+// Debug: Log what we have
+console.log('[INFO] Database URL Detection:', {
+    hasDATABASE_URL: !!process.env.DATABASE_URL,
+    hasDATABASE_URL_INTERNAL: !!process.env.DATABASE_URL_INTERNAL,
+    isRenderEnvironment: isRenderEnvironment,
+    RENDER: process.env.RENDER,
+    RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME,
+    RENDER_SERVICE_ID: process.env.RENDER_SERVICE_ID,
+    DATABASE_URL_preview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 50) + '...' : 'N/A',
+    DATABASE_URL_INTERNAL_preview: process.env.DATABASE_URL_INTERNAL ? process.env.DATABASE_URL_INTERNAL.substring(0, 50) + '...' : 'N/A'
+});
+
+// Check if Internal URL contains ".internal" (definitive sign it's an internal URL)
+const isInternalURL = process.env.DATABASE_URL_INTERNAL && 
+                      (process.env.DATABASE_URL_INTERNAL.includes('.internal') || 
+                       process.env.DATABASE_URL_INTERNAL.includes('internal:'));
+
+// Priority 1: If we have Internal URL (with .internal) and we're on Render.com, use it (fastest, no SSL)
+if (isInternalURL && isRenderEnvironment) {
     connectionString = process.env.DATABASE_URL_INTERNAL;
     useSSL = false;
     console.log('[INFO] ✅ Използвам Internal URL (Render.com internal network - най-бързо)');
 } 
-// Priority 2: If we have Internal URL but no External URL, use Internal
-else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
+// Priority 2: If we have Internal URL (with .internal) but not sure if on Render.com, still try it
+// (If it fails, we'll see an error and can debug)
+else if (isInternalURL) {
     connectionString = process.env.DATABASE_URL_INTERNAL;
     useSSL = false;
-    console.log('[INFO] ✅ Използвам Internal URL (няма External URL)');
+    console.log('[INFO] ✅ Използвам Internal URL (съдържа .internal - опитвам се да го използвам)');
+    if (!isRenderEnvironment) {
+        console.warn('[INFO] ⚠️ Не сме сигурни че сме на Render.com, но опитвам Internal URL');
+    }
 }
-// Priority 3: If we have Internal URL but we're not on Render.com, prefer External
-// (Internal URL only works within Render.com network)
+// Priority 3: If we have DATABASE_URL_INTERNAL but it's not a real internal URL, check environment
+else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
+    // No External URL, use Internal even if not sure
+    connectionString = process.env.DATABASE_URL_INTERNAL;
+    useSSL = false;
+    console.log('[INFO] ✅ Използвам DATABASE_URL_INTERNAL (няма External URL)');
+}
+// Priority 4: If we have both but Internal is not a real internal URL and we're not on Render.com
 else if (process.env.DATABASE_URL_INTERNAL && !isRenderEnvironment) {
-    console.warn('[INFO] ⚠️ DATABASE_URL_INTERNAL е зададен, но не сме на Render.com - използвам External URL');
+    console.warn('[INFO] ⚠️ DATABASE_URL_INTERNAL е зададен, но не изглежда като Internal URL и не сме на Render.com - използвам External URL');
     connectionString = process.env.DATABASE_URL;
     const isRenderPostgres = connectionString && (connectionString.includes('render.com') || 
                                                    connectionString.includes('onrender.com'));
@@ -69,7 +96,7 @@ else if (process.env.DATABASE_URL_INTERNAL && !isRenderEnvironment) {
     useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
     console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider });
 }
-// Priority 4: Use External URL
+// Priority 5: Use External URL (fallback)
 else if (process.env.DATABASE_URL) {
     connectionString = process.env.DATABASE_URL;
     // Check if URL contains SSL requirement (most external URLs do)
