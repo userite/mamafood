@@ -248,7 +248,11 @@ async function loadRecords() {
                 child_code: r.child_code,
                 child_code_type: typeof r.child_code,
                 child_code_upper: (r.child_code || '').toUpperCase(),
-                matches: ((r.child_code || '').toUpperCase() === upperChildCode)
+                matches: ((r.child_code || '').toUpperCase() === upperChildCode),
+                situation: r.situation,
+                datetime: r.datetime,
+                amount: r.amount,
+                record_number: r.record_number
             })));
             
             records = apiRecords.filter(r => {
@@ -256,10 +260,29 @@ async function loadRecords() {
                 const matches = recordCode === upperChildCode;
                 if (!matches) {
                     console.log(`[loadRecords] Запис ${r.id} пропуснат: код "${recordCode}" !== "${upperChildCode}"`);
+                } else {
+                    console.log(`[loadRecords] ✅ Запис ${r.id} включен: код "${recordCode}" === "${upperChildCode}"`);
                 }
                 return matches;
             });
             console.log(`[loadRecords] Филтрирани ${records.length} записа за код ${upperChildCode} (от ${apiRecords.length} общо от API)`);
+            
+            // Проверка за несъответствие
+            if (records.length !== apiRecords.length && apiRecords.length > 0) {
+                const excludedIds = apiRecords.filter(r => {
+                    const recordCode = (r.child_code || '').toUpperCase();
+                    return recordCode !== upperChildCode;
+                }).map(r => r.id);
+                console.warn(`[loadRecords] ⚠️ Някои записи са изключени:`, excludedIds);
+            }
+            
+            // Проверка за дублирани ID-та в филтрираните записи
+            const recordIds = records.map(r => r.id);
+            const uniqueRecordIds = [...new Set(recordIds)];
+            if (recordIds.length !== uniqueRecordIds.length) {
+                const duplicates = recordIds.filter((id, index) => recordIds.indexOf(id) !== index);
+                console.error(`[loadRecords] ❌ ДУБЛИРАНИ ID-та в филтрираните записи:`, duplicates);
+            }
             loadedFromAPI = true;
             
             // Запазване локално като fallback (запазваме всички записи, не само за текущия код)
@@ -1036,16 +1059,8 @@ function renderRecords() {
             }
             
             try {
-                const recordDate = new Date(record.datetime);
-                if (isNaN(recordDate.getTime())) {
-                    console.warn(`[renderRecords] Запис ${record.id} пропуснат: невалидна дата`, {
-                        datetime: record.datetime,
-                        parsedDate: recordDate
-                    });
-                    skippedRecords.push({ reason: 'invalid date', record });
-                    return;
-                }
-                
+                // recordDate вече е създаден по-горе, използваме го директно
+                // (проверката за валидност е направена на ред 1014-1019)
                 const expiryDate = new Date(recordDate.getTime() + situation.validityHours * 60 * 60 * 1000);
                 
                 // Проверка дали е изтекъл
@@ -1065,6 +1080,7 @@ function renderRecords() {
         console.log(`[renderRecords] Активни записи: ${activeRecords.length}`);
         console.log(`[renderRecords] Изтекли записи: ${expiredRecords.length}`);
         console.log(`[renderRecords] Пропуснати записи: ${skippedRecords.length}`);
+        console.log(`[renderRecords] Общо обработени: ${activeRecords.length + expiredRecords.length + skippedRecords.length} от ${filteredRecords.length} филтрирани`);
         
         // Подробна информация за пропуснатите записи
         if (skippedRecords.length > 0) {
@@ -1077,12 +1093,19 @@ function renderRecords() {
                     situation: skipped.record?.situation,
                     datetime: skipped.record?.datetime,
                     amount: skipped.record?.amount,
+                    record_number: skipped.record?.record_number,
                     error: skipped.error,
                     situationId: skipped.situationId,
                     availableSituations: skipped.availableSituations
                 });
             });
             console.warn(`[renderRecords] ======================================`);
+        }
+        
+        // Проверка за несъответствие в броя
+        const totalProcessed = activeRecords.length + expiredRecords.length + skippedRecords.length;
+        if (totalProcessed !== filteredRecords.length) {
+            console.error(`[renderRecords] ⚠️ НЕСЪОТВЕТСТВИЕ: Обработени ${totalProcessed} записа, но филтрирани са ${filteredRecords.length}!`);
         }
         
         // Подробна информация за изтеклите записи
@@ -1176,22 +1199,29 @@ function renderRecords() {
         });
         
         // Премахване на дублирани записи по ID
-        const seenIds = new Set();
+        // Използваме отделни Set-ове за активните и изтеклите, за да не премахваме валидни записи
+        const seenActiveIds = new Set();
         const uniqueActiveRecords = sortedActiveRecords.filter(record => {
-            if (seenIds.has(record.id)) {
-                console.warn(`[renderRecords] Дублиран запис с ID ${record.id}, пропускам...`);
+            if (seenActiveIds.has(record.id)) {
+                console.warn(`[renderRecords] Дублиран активен запис с ID ${record.id}, пропускам...`);
                 return false;
             }
-            seenIds.add(record.id);
+            seenActiveIds.add(record.id);
             return true;
         });
         
+        const seenExpiredIds = new Set();
         const uniqueExpiredRecords = sortedExpiredRecords.filter(record => {
-            if (seenIds.has(record.id)) {
+            // Проверяваме дали записът вече не е в активните
+            if (seenActiveIds.has(record.id)) {
+                console.warn(`[renderRecords] Запис с ID ${record.id} е вече в активните, пропускам от изтеклите...`);
+                return false;
+            }
+            if (seenExpiredIds.has(record.id)) {
                 console.warn(`[renderRecords] Дублиран изтекъл запис с ID ${record.id}, пропускам...`);
                 return false;
             }
-            seenIds.add(record.id);
+            seenExpiredIds.add(record.id);
             return true;
         });
         
@@ -1201,13 +1231,26 @@ function renderRecords() {
         
         // Добавяне на активните записи
         console.log(`[renderRecords] Добавяне на ${uniqueActiveRecords.length} активни записа в DOM...`);
+        let addedActiveCount = 0;
         uniqueActiveRecords.forEach((record, index) => {
-            console.log(`[renderRecords] Добавяне на активен запис ${index + 1}/${uniqueActiveRecords.length}: ID=${record.id}`);
-            const card = createRecordCard(record);
-            recordsList.appendChild(card);
+            try {
+                console.log(`[renderRecords] Добавяне на активен запис ${index + 1}/${uniqueActiveRecords.length}: ID=${record.id}, ситуация=${record.situation}, дата=${record.datetime}`);
+                const card = createRecordCard(record);
+                if (card) {
+                    recordsList.appendChild(card);
+                    addedActiveCount++;
+                } else {
+                    console.error(`[renderRecords] ❌ Неуспешно създаване на карта за запис ${record.id}`);
+                }
+            } catch (error) {
+                console.error(`[renderRecords] ❌ Грешка при добавяне на активен запис ${record.id}:`, error);
+            }
         });
-        const addedActiveCount = recordsList.querySelectorAll('.record-card').length;
-        console.log(`[renderRecords] Добавени активни записи в DOM: ${addedActiveCount}`);
+        const actualActiveCount = recordsList.querySelectorAll('.record-card').length;
+        console.log(`[renderRecords] Добавени активни записи в DOM: ${addedActiveCount} (очаквани: ${uniqueActiveRecords.length}, действителни в DOM: ${actualActiveCount})`);
+        if (addedActiveCount !== uniqueActiveRecords.length) {
+            console.error(`[renderRecords] ⚠️ НЕСЪОТВЕТСТВИЕ: Опитахме да добавим ${uniqueActiveRecords.length} активни записа, но успешно добавихме само ${addedActiveCount}!`);
+        }
         
         // Добавяне на изтеклите записи
         if (expiredRecordsList && expiredSection) {
@@ -1215,13 +1258,26 @@ function renderRecords() {
                 expiredSection.style.display = 'block';
                 console.log(`[renderRecords] ✅ Показване на секция "Изтекли порции" с ${uniqueExpiredRecords.length} записа`);
                 console.log(`[renderRecords] Добавяне на ${uniqueExpiredRecords.length} изтекли записа в DOM...`);
+                let addedExpiredCount = 0;
                 uniqueExpiredRecords.forEach((record, index) => {
-                    console.log(`[renderRecords] Добавяне на изтекъл запис ${index + 1}/${uniqueExpiredRecords.length}: ID=${record.id}, ситуация=${record.situation}, дата=${record.datetime}`);
-                    const card = createRecordCard(record);
-                    expiredRecordsList.appendChild(card);
+                    try {
+                        console.log(`[renderRecords] Добавяне на изтекъл запис ${index + 1}/${uniqueExpiredRecords.length}: ID=${record.id}, ситуация=${record.situation}, дата=${record.datetime}`);
+                        const card = createRecordCard(record);
+                        if (card) {
+                            expiredRecordsList.appendChild(card);
+                            addedExpiredCount++;
+                        } else {
+                            console.error(`[renderRecords] ❌ Неуспешно създаване на карта за изтекъл запис ${record.id}`);
+                        }
+                    } catch (error) {
+                        console.error(`[renderRecords] ❌ Грешка при добавяне на изтекъл запис ${record.id}:`, error);
+                    }
                 });
-                const addedExpiredCount = expiredRecordsList.querySelectorAll('.record-card').length;
-                console.log(`[renderRecords] ✅ Добавени ${addedExpiredCount} изтекли записа в DOM`);
+                const actualExpiredCount = expiredRecordsList.querySelectorAll('.record-card').length;
+                console.log(`[renderRecords] ✅ Добавени изтекли записа в DOM: ${addedExpiredCount} (очаквани: ${uniqueExpiredRecords.length}, действителни в DOM: ${actualExpiredCount})`);
+                if (addedExpiredCount !== uniqueExpiredRecords.length) {
+                    console.error(`[renderRecords] ⚠️ НЕСЪОТВЕТСТВИЕ: Опитахме да добавим ${uniqueExpiredRecords.length} изтекли записа, но успешно добавихме само ${addedExpiredCount}!`);
+                }
             } else {
                 expiredSection.style.display = 'none';
                 console.log(`[renderRecords] ❌ Няма изтекли записи - секцията "Изтекли порции" е скрита`);
@@ -1398,10 +1454,12 @@ function createRecordCard(record) {
     }
     
     // Форматиране на дата във формат DD/MM/YYYY
-    const formattedDate = formatDateDDMMYYYY(recordDate);
+    // Предаваме оригиналния ISO string за правилно откриване на timezone
+    const formattedDate = formatDateDDMMYYYY(record.datetime);
     
     // Форматиране на час във формат HH:MM (24-часов формат)
-    const formattedTime = formatTimeHHMM(recordDate);
+    // Предаваме оригиналния ISO string за правилно откриване на timezone
+    const formattedTime = formatTimeHHMM(record.datetime);
     
     // Изчисляване на срок на годност
     const expiryDate = new Date(recordDate.getTime() + situation.validityHours * 60 * 60 * 1000);
@@ -1429,8 +1487,10 @@ function createRecordCard(record) {
     }
     
     // Форматиране на срока на годност - фиксиран формат DD/MM/YYYY HH:MM
-    const expiryDateFormatted = formatDateDDMMYYYY(expiryDate);
-    const expiryTimeFormatted = formatTimeHHMM(expiryDate);
+    // Конвертираме към ISO string за правилно форматиране
+    const expiryDateISO = expiryDate.toISOString();
+    const expiryDateFormatted = formatDateDDMMYYYY(expiryDateISO);
+    const expiryTimeFormatted = formatTimeHHMM(expiryDateISO);
     const formattedExpiry = `${expiryDateFormatted} ${expiryTimeFormatted}`;
     
     // Получаване на номера на порцията (ако има)
