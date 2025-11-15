@@ -324,11 +324,21 @@ app.get('/api/records/:child_code', async (req, res) => {
             console.warn('[API] Грешка при проверка на кодовете (продължавам):', codesError.message);
         }
         
-        const result = await pool.query(
-            'SELECT * FROM records WHERE UPPER(child_code) = UPPER($1) ORDER BY datetime DESC',
-            [upperChildCode]
-        );
-        console.log(`[API] Заявка за записи за код: "${upperChildCode}", Намерени: ${result.rows.length} записа`);
+        let result;
+        try {
+            result = await pool.query(
+                'SELECT * FROM records WHERE UPPER(child_code) = UPPER($1) ORDER BY datetime DESC',
+                [upperChildCode]
+            );
+            console.log(`[API] ✅ Заявка за записи за код: "${upperChildCode}", Намерени: ${result.rows.length} записа`);
+        } catch (queryError) {
+            console.error('[API] ❌ Грешка при изпълнение на SQL заявката:', queryError);
+            console.error('[API] Error name:', queryError.name);
+            console.error('[API] Error message:', queryError.message);
+            console.error('[API] Error code:', queryError.code);
+            console.error('[API] Error detail:', queryError.detail);
+            throw queryError; // Прехвърляме грешката към catch блока
+        }
         
         // Проверка за дублиране на ID-та
         const ids = result.rows.map(r => r.id);
