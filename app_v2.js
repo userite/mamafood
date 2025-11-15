@@ -810,16 +810,40 @@ async function saveRecord() {
                     records.push(newRecord);
                     renderRecords();
                     saveRecords();
-                    showToast('Записът е добавен локално (грешка при синхронизация)');
+                    const errorMsg = `Грешка при записване в базата: ${response.status}\n${errorText}\n\nПровери конзолата за повече детайли.`;
+                    alert(errorMsg);
+                    showToast('Записът е добавен локално (грешка при синхронизация)', 10000); // 10 секунди
                 }
             } catch (error) {
+                // Детайлно логиране на грешката
                 console.error('[saveRecord] ❌ Грешка при изпращане на заявка:', error);
+                console.error('[saveRecord] Error name:', error.name);
+                console.error('[saveRecord] Error message:', error.message);
                 console.error('[saveRecord] Stack trace:', error.stack);
+                
+                // Показваме грешката в alert за да не изчезне
+                const errorMsg = `Грешка при записване: ${error.message || error.toString()}\n\nПровери конзолата за повече детайли.`;
+                alert(errorMsg);
+                
+                // Логираме в конзолата за по-лесно debugging
+                console.error('[saveRecord] ========== ДЕТАЙЛИ ЗА ГРЕШКАТА ==========');
+                console.error('[saveRecord] API_BASE:', API_BASE);
+                console.error('[saveRecord] Full URL:', `${API_BASE}/api/records`);
+                console.error('[saveRecord] Request data:', {
+                    child_code: upperChildCode,
+                    record_number: newRecord.record_number,
+                    amount: newRecord.amount,
+                    situation: newRecord.situation,
+                    datetime: newRecord.datetime,
+                    notes: newRecord.notes
+                });
+                console.error('[saveRecord] ==========================================');
+                
                 // Добавяме локално дори при грешка
                 records.push(newRecord);
                 renderRecords();
                 saveRecords();
-                showToast('Записът е добавен локално (грешка при синхронизация)');
+                showToast('Записът е добавен локално (грешка при синхронизация)', 10000); // 10 секунди
             }
         }
         
@@ -1556,7 +1580,7 @@ if (typeof window !== 'undefined') {
 }
 
 // Функция за показване на toast съобщение
-function showToast(message) {
+function showToast(message, duration = 3000) {
     // Проверяваме дали вече има toast елемент
     let toast = document.getElementById('toast');
     if (!toast) {
@@ -1571,7 +1595,9 @@ function showToast(message) {
         toast.style.color = 'white';
         toast.style.padding = '10px 20px';
         toast.style.borderRadius = '5px';
-        toast.style.zIndex = '1000';
+        toast.style.zIndex = '10000';
+        toast.style.maxWidth = '80%';
+        toast.style.wordWrap = 'break-word';
         document.body.appendChild(toast);
     }
     
@@ -1581,10 +1607,10 @@ function showToast(message) {
     // Показваме toast съобщението
     toast.style.display = 'block';
     
-    // Скриваме toast съобщението след 3 секунди
+    // Скриваме toast съобщението след зададеното време
     setTimeout(() => {
         toast.style.display = 'none';
-    }, 3000);
+    }, duration);
 }
 
 // Експортиране на функции в глобалния обхват
