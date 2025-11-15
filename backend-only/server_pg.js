@@ -508,6 +508,27 @@ app.get('/api/children/:child_code', async (req, res) => {
         const upperChildCode = child_code.toUpperCase();
         console.log(`[API] GET /api/children/${child_code} -> търсене за код: "${upperChildCode}"`);
         
+        // Проверка дали таблицата съществува
+        try {
+            const tableCheck = await pool.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'children'
+                );
+            `);
+            const tableExists = tableCheck.rows[0].exists;
+            console.log(`[API] Таблицата 'children' съществува: ${tableExists}`);
+            
+            if (!tableExists) {
+                console.warn('[API] ⚠️ Таблицата "children" не съществува! Връщаме празен обект.');
+                return res.json({ child_code: upperChildCode, name: null, last_accessed: null });
+            }
+        } catch (tableCheckError) {
+            console.error('[API] Грешка при проверка на таблицата:', tableCheckError);
+            // Продължаваме напред, може да работи и без проверката
+        }
+        
         const result = await pool.query(
             'SELECT * FROM children WHERE UPPER(child_code) = UPPER($1)',
             [upperChildCode]
@@ -523,9 +544,16 @@ app.get('/api/children/:child_code', async (req, res) => {
         res.json(result.rows[0]);
     } catch (error) {
         console.error('[API] ❌ Грешка при зареждане на дете:', error);
+        console.error('[API] Error name:', error.name);
+        console.error('[API] Error message:', error.message);
+        console.error('[API] Error code:', error.code);
+        console.error('[API] Error detail:', error.detail);
         console.error('[API] Stack trace:', error.stack);
+        
         // Връщаме празен обект вместо 500, за да не спира приложението
-        res.json({ child_code: (req.params.child_code || '').toUpperCase(), name: null, last_accessed: null });
+        const upperChildCode = (req.params.child_code || '').toUpperCase();
+        console.log(`[API] Връщаме празен обект за код: "${upperChildCode}"`);
+        res.json({ child_code: upperChildCode, name: null, last_accessed: null });
     }
 });
 
