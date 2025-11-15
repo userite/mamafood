@@ -464,9 +464,27 @@ function convertToLocalDateTimeString(isoString) {
 // Функция за форматиране на дата във формат DD/MM/YYYY (фиксиран формат независимо от езика)
 function formatDateDDMMYYYY(date) {
     if (!date) return '';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
     
+    // Парсиране на датата - използваме локално време
+    let d;
+    if (typeof date === 'string') {
+        // Ако е ISO string (с Z или +), парсираме като UTC и конвертираме в локално
+        if (date.includes('Z') || date.includes('+') || date.includes('-') && date.match(/^\d{4}-\d{2}-\d{2}/)) {
+            d = new Date(date);
+        } else {
+            // Ако е локален формат, парсираме директно
+            d = new Date(date);
+        }
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) {
+        console.warn('[formatDateDDMMYYYY] Невалидна дата:', date);
+        return '';
+    }
+    
+    // Използваме локалните методи за да получим правилния ден и месец
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
@@ -684,6 +702,16 @@ async function saveRecord() {
             try {
                 // Уверяваме се, че кодът е в главни букви
                 const upperChildCode = (childCode || '').toUpperCase();
+                console.log('[saveRecord] Изпращане на POST заявка към:', `${API_BASE}/api/records`);
+                console.log('[saveRecord] Данни за запис:', {
+                    child_code: upperChildCode,
+                    record_number: newRecord.record_number,
+                    amount: newRecord.amount,
+                    situation: newRecord.situation,
+                    datetime: newRecord.datetime,
+                    notes: newRecord.notes
+                });
+                
                 const response = await fetch(`${API_BASE}/api/records`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -697,13 +725,26 @@ async function saveRecord() {
                     })
                 });
                 
+                console.log('[saveRecord] Response status:', response.status, response.statusText);
+                
                 if (response.ok) {
                     const serverRecord = await response.json();
+                    console.log('[saveRecord] ✅ Успешно записан в базата:', serverRecord);
                     newRecord.id = serverRecord.id;
                     newRecord.server_id = serverRecord.id;
+                } else {
+                    const errorText = await response.text();
+                    console.error('[saveRecord] ❌ Грешка при записване в базата:', response.status, errorText);
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        console.error('[saveRecord] Детайли за грешката:', errorJson);
+                    } catch (e) {
+                        console.error('[saveRecord] Не може да се парсне грешката като JSON');
+                    }
                 }
             } catch (error) {
-                console.warn('Could not sync new record to server:', error);
+                console.error('[saveRecord] ❌ Грешка при изпращане на заявка:', error);
+                console.error('[saveRecord] Stack trace:', error.stack);
             }
             
             records.push(newRecord);
@@ -1219,6 +1260,17 @@ function createRecordCard(record) {
     
     // Форматиране на дата и час - фиксиран формат DD/MM/YYYY независимо от езика
     const recordDate = new Date(record.datetime);
+    
+    // Debug logging за датата
+    if (record.id && record.id % 10 === 0) { // Log само за всеки 10-ти запис за да не е прекалено много
+        console.log(`[createRecordCard] Дата за запис ${record.id}:`, {
+            original: record.datetime,
+            parsed: recordDate,
+            localDate: recordDate.getDate(),
+            localMonth: recordDate.getMonth() + 1,
+            localYear: recordDate.getFullYear()
+        });
+    }
     
     // Форматиране на дата във формат DD/MM/YYYY
     const formattedDate = formatDateDDMMYYYY(recordDate);
