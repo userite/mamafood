@@ -217,14 +217,18 @@ async function loadRecords() {
             const apiRecords = await response.json();
             console.log(`[loadRecords] Заредени ${apiRecords.length} записа от API`);
             console.log(`[loadRecords] ========== ВСИЧКИ ЗАПИСИ ОТ API ==========`);
-            console.log(apiRecords.map(r => ({
-                id: r.id,
-                child_code: r.child_code,
-                situation: r.situation,
-                datetime: r.datetime,
-                amount: r.amount,
-                record_number: r.record_number
-            })));
+            apiRecords.forEach((r, idx) => {
+                console.log(`[loadRecords] Запис ${idx + 1}:`, {
+                    id: r.id,
+                    child_code: r.child_code,
+                    situation: r.situation,
+                    datetime: r.datetime,
+                    datetime_parsed: new Date(r.datetime).toISOString(),
+                    amount: r.amount,
+                    record_number: r.record_number,
+                    notes: r.notes || null
+                });
+            });
             console.log(`[loadRecords] ==========================================`);
             
             // Проверка за дублиране в данните от API
