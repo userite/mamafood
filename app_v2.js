@@ -465,18 +465,22 @@ function convertToLocalDateTimeString(isoString) {
 function formatDateDDMMYYYY(date) {
     if (!date) return '';
     
-    // Парсиране на датата - използваме локално време
     let d;
+    let useUTC = false;
+    
     if (typeof date === 'string') {
-        // Ако е ISO string (с Z или +), парсираме като UTC и конвертираме в локално
-        if (date.includes('Z') || date.includes('+') || date.includes('-') && date.match(/^\d{4}-\d{2}-\d{2}/)) {
+        // Ако е ISO string (с Z или завършва с timezone), използваме UTC методи
+        if (date.includes('Z') || date.match(/[+-]\d{2}:\d{2}$/) || date.match(/^\d{4}-\d{2}-\d{2}T/)) {
             d = new Date(date);
+            useUTC = true; // Използваме UTC методи за да получим правилния ден/месец от ISO string
         } else {
-            // Ако е локален формат, парсираме директно
             d = new Date(date);
+            useUTC = false;
         }
     } else {
         d = new Date(date);
+        // Ако е Date обект от ISO string, проверим дали е UTC
+        useUTC = date.toISOString && date.toISOString().includes('Z');
     }
     
     if (isNaN(d.getTime())) {
@@ -484,10 +488,11 @@ function formatDateDDMMYYYY(date) {
         return '';
     }
     
-    // Използваме локалните методи за да получим правилния ден и месец
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
+    // Използваме UTC методи ако датата е ISO string (от базата данни)
+    // Това гарантира че получаваме правилния ден и месец независимо от timezone
+    const day = useUTC ? String(d.getUTCDate()).padStart(2, '0') : String(d.getDate()).padStart(2, '0');
+    const month = useUTC ? String(d.getUTCMonth() + 1).padStart(2, '0') : String(d.getMonth() + 1).padStart(2, '0');
+    const year = useUTC ? d.getUTCFullYear() : d.getFullYear();
     
     return `${day}/${month}/${year}`;
 }
@@ -498,8 +503,12 @@ function formatTimeHHMM(date) {
     const d = new Date(date);
     if (isNaN(d.getTime())) return '';
     
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
+    // Проверяваме дали датата е ISO string (от базата данни)
+    const isISOString = typeof date === 'string' && (date.includes('Z') || date.match(/[+-]\d{2}:\d{2}$/) || date.match(/^\d{4}-\d{2}-\d{2}T/));
+    
+    // Използваме UTC методи ако е ISO string, иначе локални методи
+    const hours = isISOString ? String(d.getUTCHours()).padStart(2, '0') : String(d.getHours()).padStart(2, '0');
+    const minutes = isISOString ? String(d.getUTCMinutes()).padStart(2, '0') : String(d.getMinutes()).padStart(2, '0');
     
     return `${hours}:${minutes}`;
 }
