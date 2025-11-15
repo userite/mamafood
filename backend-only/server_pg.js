@@ -641,10 +641,45 @@ app.put('/api/records/:id', async (req, res) => {
 app.delete('/api/records/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        await pool.query('DELETE FROM records WHERE id = $1', [id]);
-        res.json({ success: true });
+        console.log(`[API] DELETE /api/records/${id} - Изтриване на запис`);
+        
+        if (!id) {
+            console.error('[API] ❌ ID не е предоставен!');
+            return res.status(400).json({ error: 'Record ID is required' });
+        }
+        
+        // Проверка дали записът съществува
+        const checkResult = await pool.query('SELECT id, child_code FROM records WHERE id = $1', [id]);
+        if (checkResult.rows.length === 0) {
+            console.warn(`[API] ⚠️ Запис с ID ${id} не е намерен`);
+            return res.status(404).json({ error: 'Record not found' });
+        }
+        
+        console.log(`[API] Намерен запис за изтриване:`, checkResult.rows[0]);
+        
+        // Изтриване на записа
+        const deleteResult = await pool.query('DELETE FROM records WHERE id = $1 RETURNING id', [id]);
+        
+        if (deleteResult.rowCount === 0) {
+            console.warn(`[API] ⚠️ Запис с ID ${id} не е изтрит (може би вече е изтрит)`);
+            return res.status(404).json({ error: 'Record not found or already deleted' });
+        }
+        
+        console.log(`[API] ✅ Успешно изтрит запис с ID ${id}`);
+        res.json({ success: true, deletedId: id });
     } catch (error) {
-        console.error('Error deleting record:', error);
+        console.error('[API] ❌ Грешка при изтриване на запис:', error);
+        console.error('[API] Error name:', error.name);
+        console.error('[API] Error message:', error.message);
+        console.error('[API] Error code:', error.code);
+        console.error('[API] Stack trace:', error.stack);
+        
+        // Проверяваме дали response вече е изпратен
+        if (res.headersSent) {
+            console.error('[API] ⚠️ Response вече е изпратен, не можем да променим статуса');
+            return;
+        }
+        
         res.status(500).json({ error: error.message });
     }
 });

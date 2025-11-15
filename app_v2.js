@@ -900,29 +900,65 @@ async function saveRecord() {
 async function deleteRecord(recordId) {
     // Конвертиране на recordId към правилния тип (string или number)
     if (confirm('Сигурни ли сте, че искате да изтриете този запис?')) {
+        console.log(`[deleteRecord] Изтриване на запис ${recordId}`);
+        console.log(`[deleteRecord] API_BASE: ${API_BASE}`);
+        console.log(`[deleteRecord] Full URL: ${API_BASE}/api/records/${recordId}`);
+        
         // Опит за изтриване от сървъра
         try {
             const response = await fetch(`${API_BASE}/api/records/${recordId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
+            
+            console.log(`[deleteRecord] Response status: ${response.status}`);
+            console.log(`[deleteRecord] Response ok: ${response.ok}`);
+            
             if (response.ok) {
+                const result = await response.json();
+                console.log(`[deleteRecord] ✅ Успешно изтриване от сървъра:`, result);
                 // Успешно изтриване - презареждаме записите от сървъра
                 await loadRecords();
                 showToast('Записът е изтрит успешно!');
                 updateStats();
                 return;
             } else {
-                console.warn('Failed to delete record on server');
+                // Опитваме се да прочетем грешката от response
+                let errorMessage = `HTTP ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch (e) {
+                    errorMessage = await response.text() || errorMessage;
+                }
+                
+                console.error(`[deleteRecord] ❌ Грешка при изтриване от сървъра:`, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorMessage
+                });
+                
+                // Показваме грешката на потребителя
+                showToast(`Грешка при изтриване от сървъра: ${errorMessage}`, 5000);
+                
+                // НЕ правим локално изтриване при грешка от сървъра
+                // За да не се десинхронизират данните
+                return;
             }
         } catch (error) {
-            console.warn('Could not sync delete to server:', error);
+            console.error('[deleteRecord] ❌ Грешка при изпращане на DELETE заявка:', error);
+            console.error('[deleteRecord] Error name:', error.name);
+            console.error('[deleteRecord] Error message:', error.message);
+            
+            // Показваме грешката на потребителя
+            showToast(`Грешка при изтриване: ${error.message || error.toString()}`, 5000);
+            
+            // НЕ правим локално изтриване при network грешка
+            // За да не се десинхронизират данните
+            return;
         }
-        
-        // Fallback: локално изтриване
-        records = records.filter(record => String(record.id) !== String(recordId) && record.id !== recordId);
-        saveRecords();
-        renderRecords();
-        updateStats();
     }
 }
 
