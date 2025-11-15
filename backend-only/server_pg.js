@@ -305,13 +305,24 @@ app.get('/api/records/:child_code', async (req, res) => {
         );
         console.log(`[API] Заявка за записи за код: "${upperChildCode}", Намерени: ${result.rows.length} записа`);
         
+        // Проверка за дублиране на ID-та
+        const ids = result.rows.map(r => r.id);
+        const uniqueIds = [...new Set(ids)];
+        if (ids.length !== uniqueIds.length) {
+            const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+            console.warn(`[API] ⚠️ ДУБЛИРАНИ ID-та в резултата:`, duplicates);
+            console.warn(`[API] Общо записи: ${ids.length}, Уникални ID-та: ${uniqueIds.length}`);
+        }
+        
         if (result.rows.length > 0) {
-            console.log(`[API] Първите 3 записа:`, result.rows.slice(0, 3).map(r => ({
+            console.log(`[API] Всички записи (детайли):`, result.rows.map(r => ({
                 id: r.id,
                 child_code: r.child_code,
                 record_number: r.record_number,
                 amount: r.amount,
-                situation: r.situation
+                situation: r.situation,
+                datetime: r.datetime,
+                created_at: r.created_at
             })));
         }
         

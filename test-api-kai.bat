@@ -16,7 +16,12 @@ echo.
 
 REM Тест 2: Записи за KAI
 echo [TEST 2] Записи за код KAI...
-curl -s http://localhost:3000/api/records/KAI
+echo.
+curl -s http://localhost:3000/api/records/KAI | python -m json.tool 2>nul
+if errorlevel 1 (
+    echo [RAW RESPONSE:]
+    curl -s http://localhost:3000/api/records/KAI
+)
 echo.
 echo.
 
