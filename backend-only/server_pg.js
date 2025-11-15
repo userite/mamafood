@@ -37,21 +37,42 @@ const PORT = process.env.PORT || 3000;
 let connectionString = process.env.DATABASE_URL;
 let useSSL = false;
 
-// If we're on Render.com and have internal URL, prefer it (faster, no SSL needed)
-if (process.env.DATABASE_URL_INTERNAL && process.env.RENDER) {
+// Check if we're running on Render.com
+const isRenderEnvironment = process.env.RENDER === 'true' || 
+                             process.env.RENDER_SERVICE_NAME ||
+                             process.env.RENDER_SERVICE_ID ||
+                             (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('render.com')) ||
+                             (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('onrender.com'));
+
+// Priority 1: If we have Internal URL and we're on Render.com, use it (fastest, no SSL)
+if (process.env.DATABASE_URL_INTERNAL && isRenderEnvironment) {
     connectionString = process.env.DATABASE_URL_INTERNAL;
     useSSL = false;
-    console.log('[INFO] Използвам Internal URL (Render.com internal network)');
-} else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
-    // Use internal URL if no external URL is provided
+    console.log('[INFO] ✅ Използвам Internal URL (Render.com internal network - най-бързо)');
+} 
+// Priority 2: If we have Internal URL but no External URL, use Internal
+else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
     connectionString = process.env.DATABASE_URL_INTERNAL;
     useSSL = false;
-    console.log('[INFO] Използвам Internal URL (няма External URL)');
-} else if (process.env.DATABASE_URL) {
-    // External URL - usually requires SSL
+    console.log('[INFO] ✅ Използвам Internal URL (няма External URL)');
+}
+// Priority 3: If we have Internal URL but we're not on Render.com, prefer External
+// (Internal URL only works within Render.com network)
+else if (process.env.DATABASE_URL_INTERNAL && !isRenderEnvironment) {
+    console.warn('[INFO] ⚠️ DATABASE_URL_INTERNAL е зададен, но не сме на Render.com - използвам External URL');
+    connectionString = process.env.DATABASE_URL;
+    const isRenderPostgres = connectionString && (connectionString.includes('render.com') || 
+                                                   connectionString.includes('onrender.com'));
+    const isCloudProvider = connectionString && (connectionString.includes('amazonaws.com') ||
+                                                   connectionString.includes('azure.com') ||
+                                                   connectionString.includes('cloud.google.com'));
+    useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
+    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider });
+}
+// Priority 4: Use External URL
+else if (process.env.DATABASE_URL) {
     connectionString = process.env.DATABASE_URL;
     // Check if URL contains SSL requirement (most external URLs do)
-    // Render.com PostgreSQL external URLs usually require SSL
     const isRenderPostgres = connectionString.includes('render.com') || 
                              connectionString.includes('onrender.com');
     const isCloudProvider = connectionString.includes('amazonaws.com') ||
@@ -65,7 +86,7 @@ if (process.env.DATABASE_URL_INTERNAL && process.env.RENDER) {
         console.warn('[INFO] ⚠️ Render.com external URL без SSL - може да има проблеми с връзката!');
     }
     
-    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider });
+    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider, isRenderEnvironment });
 }
 
 const dbConfig = {
