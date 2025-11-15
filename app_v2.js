@@ -761,6 +761,15 @@ async function saveRecord() {
                     console.log('[saveRecord] ✅ Успешно записан в базата:', serverRecord);
                     newRecord.id = serverRecord.id;
                     newRecord.server_id = serverRecord.id;
+                    
+                    // Изчакваме малко за да се уверяваме че записът е напълно записан в базата
+                    console.log('[saveRecord] Изчакване 500ms преди презареждане на записите...');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Презареждаме записите от сървъра след добавяне
+                    console.log('[saveRecord] Презареждане на записите от сървъра...');
+                    await loadRecords();
+                    showToast('Записът е добавен успешно!');
                 } else {
                     const errorText = await response.text();
                     console.error('[saveRecord] ❌ Грешка при записване в базата:', response.status, errorText);
@@ -770,17 +779,21 @@ async function saveRecord() {
                     } catch (e) {
                         console.error('[saveRecord] Не може да се парсне грешката като JSON');
                     }
+                    // Добавяме локално дори при грешка
+                    records.push(newRecord);
+                    renderRecords();
+                    saveRecords();
+                    showToast('Записът е добавен локално (грешка при синхронизация)');
                 }
             } catch (error) {
                 console.error('[saveRecord] ❌ Грешка при изпращане на заявка:', error);
                 console.error('[saveRecord] Stack trace:', error.stack);
+                // Добавяме локално дори при грешка
+                records.push(newRecord);
+                renderRecords();
+                saveRecords();
+                showToast('Записът е добавен локално (грешка при синхронизация)');
             }
-            
-            records.push(newRecord);
-            
-            // Презареждаме записите от сървъра след добавяне
-            await loadRecords();
-            showToast('Записът е добавен успешно!');
         }
         
         // Затваряне на модалния прозорец
