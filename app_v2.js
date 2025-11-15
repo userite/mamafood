@@ -61,9 +61,17 @@ async function loadChildInfo() {
     try {
         // Уверяваме се, че кодът е в главни букви
         const upperChildCode = (childCode || '').toUpperCase();
+        if (!upperChildCode) {
+            console.log('[loadChildInfo] Няма избран child_code, пропускам зареждане');
+            return;
+        }
+        
+        console.log(`[loadChildInfo] Зареждане на информация за дете: ${upperChildCode}`);
         const response = await fetch(`${API_BASE}/api/children/${upperChildCode}`);
+        
         if (response.ok) {
             const childInfo = await response.json();
+            console.log(`[loadChildInfo] Получена информация:`, childInfo);
             if (childInfo.name) {
                 localStorage.setItem('mamafood_child_name', childInfo.name);
                 updateChildCodeTooltip();
@@ -71,10 +79,13 @@ async function loadChildInfo() {
                 // Актуализираме display-а дори и да няма име
                 updateChildCodeTooltip();
             }
+        } else {
+            console.warn(`[loadChildInfo] Response status: ${response.status}, пропускам`);
+            updateChildCodeTooltip();
         }
     } catch (error) {
         // Ако детето не съществува, това е нормално при първо използване
-        console.log('Child info not loaded:', error.message);
+        console.log('[loadChildInfo] Грешка при зареждане (нормално при първо използване):', error.message);
         // Актуализираме display-а дори и при грешка
         updateChildCodeTooltip();
     }

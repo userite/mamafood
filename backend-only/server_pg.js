@@ -477,19 +477,26 @@ app.get('/api/children/:child_code', async (req, res) => {
         const { child_code } = req.params;
         // Конвертиране в главни букви за case-insensitive търсене
         const upperChildCode = child_code.toUpperCase();
+        console.log(`[API] GET /api/children/${child_code} -> търсене за код: "${upperChildCode}"`);
+        
         const result = await pool.query(
             'SELECT * FROM children WHERE UPPER(child_code) = UPPER($1)',
             [upperChildCode]
         );
         
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Child not found' });
+            // Връщаме празен обект вместо 404, за да не причинява грешки във frontend-а
+            console.log(`[API] Дете с код "${upperChildCode}" не е намерено, връщаме празен обект`);
+            return res.json({ child_code: upperChildCode, name: null, last_accessed: null });
         }
         
+        console.log(`[API] Намерено дете:`, result.rows[0]);
         res.json(result.rows[0]);
     } catch (error) {
-        console.error('Error fetching child:', error);
-        res.status(500).json({ error: error.message });
+        console.error('[API] ❌ Грешка при зареждане на дете:', error);
+        console.error('[API] Stack trace:', error.stack);
+        // Връщаме празен обект вместо 500, за да не спира приложението
+        res.json({ child_code: (req.params.child_code || '').toUpperCase(), name: null, last_accessed: null });
     }
 });
 
