@@ -51,11 +51,21 @@ if (process.env.DATABASE_URL_INTERNAL && process.env.RENDER) {
     // External URL - usually requires SSL
     connectionString = process.env.DATABASE_URL;
     // Check if URL contains SSL requirement (most external URLs do)
-    useSSL = connectionString.includes('render.com') || 
-             connectionString.includes('amazonaws.com') ||
-             connectionString.includes('azure.com') ||
-             process.env.DATABASE_URL_SSL === 'true';
-    console.log('[INFO] Използвам External URL');
+    // Render.com PostgreSQL external URLs usually require SSL
+    const isRenderPostgres = connectionString.includes('render.com') || 
+                             connectionString.includes('onrender.com');
+    const isCloudProvider = connectionString.includes('amazonaws.com') ||
+                            connectionString.includes('azure.com') ||
+                            connectionString.includes('cloud.google.com');
+    
+    // For Render.com external connections, SSL is usually required
+    useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
+    
+    if (isRenderPostgres && !useSSL) {
+        console.warn('[INFO] ⚠️ Render.com external URL без SSL - може да има проблеми с връзката!');
+    }
+    
+    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider });
 }
 
 const dbConfig = {
