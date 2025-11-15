@@ -660,10 +660,37 @@ async function saveRecord() {
         let datetime = document.getElementById('datetime').value;
         const notes = document.getElementById('notes').value;
         
+        console.log('[saveRecord] Стойности от формата:', {
+            recordId: recordId,
+            amount: amount,
+            situation: situation,
+            datetime: datetime,
+            notes: notes
+        });
+        
+        // Валидация на задължителните полета
+        if (!amount || !situation || !datetime) {
+            console.error('[saveRecord] ❌ Липсват задължителни полета:', {
+                has_amount: !!amount,
+                has_situation: !!situation,
+                has_datetime: !!datetime
+            });
+            showToast('Моля попълнете всички задължителни полета!');
+            isSaving = false;
+            return;
+        }
+        
         // Конвертиране на локално време към ISO формат
         if (datetime && !datetime.includes('Z') && !datetime.includes('+')) {
             const localDate = new Date(datetime);
+            if (isNaN(localDate.getTime())) {
+                console.error('[saveRecord] ❌ Невалидна дата:', datetime);
+                showToast('Невалидна дата!');
+                isSaving = false;
+                return;
+            }
             datetime = localDate.toISOString();
+            console.log('[saveRecord] Конвертирана дата:', datetime);
         }
         
         // Създаване на нов запис

@@ -352,13 +352,32 @@ app.get('/api/records/:child_code/next-number', async (req, res) => {
 });
 
 app.post('/api/records', async (req, res) => {
+    console.log('[API] POST /api/records - Получена заявка');
+    console.log('[API] Request body:', JSON.stringify(req.body, null, 2));
+    
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         
         const { child_code, record_number, amount, situation, datetime, notes } = req.body;
         
+        console.log('[API] Парсирани полета:', {
+            child_code: child_code,
+            record_number: record_number,
+            amount: amount,
+            situation: situation,
+            datetime: datetime,
+            notes: notes || null
+        });
+        
         if (!child_code || !record_number || !amount || !situation || !datetime) {
+            console.error('[API] ❌ Липсват задължителни полета:', {
+                has_child_code: !!child_code,
+                has_record_number: record_number !== undefined && record_number !== null,
+                has_amount: amount !== undefined && amount !== null,
+                has_situation: !!situation,
+                has_datetime: !!datetime
+            });
             await client.query('ROLLBACK');
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -398,12 +417,22 @@ app.post('/api/records', async (req, res) => {
         );
         
         await client.query('COMMIT');
-        console.log(`✅ Added record #${record_number} for child ${upperChildCode} with datetime: ${normalizedDateTime}`);
+        const newRecordId = result.rows[0].id;
+        console.log(`[API] ✅ Успешно добавен запис #${record_number} за дете ${upperChildCode}`);
+        console.log(`[API] Нов ID: ${newRecordId}, datetime: ${normalizedDateTime}`);
         
-        res.json({ id: result.rows[0].id, ...req.body, datetime: normalizedDateTime });
+        const responseData = { id: newRecordId, ...req.body, datetime: normalizedDateTime };
+        console.log('[API] Response data:', JSON.stringify(responseData, null, 2));
+        res.json(responseData);
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Error adding record:', error);
+        console.error('[API] ❌ Грешка при добавяне на запис:', error);
+        console.error('[API] Error stack:', error.stack);
+        console.error('[API] Error details:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: error.message });
     } finally {
         client.release();
