@@ -540,12 +540,10 @@ const getAPIBase = () => {
     // Ако е на inex-project.net или pci.inex-project.net, използвай Render.com backend
     if (hostname === 'inex-project.net' || hostname === 'pci.inex-project.net' || hostname.endsWith('.inex-project.net')) {
         // Backend е на Render.com, не на същия домейн
-        // ПРОМЕНИ ТОЗИ URL С ТВОЯТ RENDER.COM BACKEND URL!
-        return 'https://https://mamafood.onrender.com';
+        return 'https://mamafood-backend.onrender.com';
     }
     // Иначе използвай production URL (Render.com)
-    // ПРОМЕНИ ТОЗИ URL С ТВОЯТ RENDER.COM BACKEND URL!
-    return 'https://https://mamafood.onrender.com';
+    return 'https://mamafood-backend.onrender.com';
 };
 
 const API_BASE = getAPIBase();
