@@ -374,7 +374,18 @@ function normalizeDateTime(datetime) {
 
 app.get('/api/records/:child_code', async (req, res) => {
     try {
+        // Проверка за database connection
+        if (!pool) {
+            console.error('[API] ❌ Database pool не е инициализиран!');
+            return res.status(500).json({ error: 'Database connection not initialized' });
+        }
+        
         const { child_code } = req.params;
+        if (!child_code) {
+            console.error('[API] ❌ child_code не е предоставен!');
+            return res.status(400).json({ error: 'child_code is required' });
+        }
+        
         // Конвертиране в главни букви за case-insensitive търсене
         const upperChildCode = child_code.toUpperCase();
         console.log(`[API] GET /api/records/${child_code} -> търсене за код: "${upperChildCode}"`);
@@ -383,7 +394,8 @@ app.get('/api/records/:child_code', async (req, res) => {
             connectionStringPreview: connectionString ? connectionString.substring(0, 50) + '...' : 'N/A',
             isInternal: connectionString === process.env.DATABASE_URL_INTERNAL,
             isExternal: connectionString === process.env.DATABASE_URL,
-            useSSL: useSSL
+            useSSL: useSSL,
+            poolExists: !!pool
         });
         
         // Проверка дали таблицата съществува
@@ -479,9 +491,16 @@ app.get('/api/records/:child_code', async (req, res) => {
         console.error('[API] Error detail:', error.detail);
         console.error('[API] Stack trace:', error.stack);
         
-        // Връщаме празен масив вместо 500, за да не спира приложението
-        console.log(`[API] Връщаме празен масив заради грешка`);
-        res.json([]);
+        // Проверяваме дали response вече е изпратен
+        if (res.headersSent) {
+            console.error('[API] ⚠️ Response вече е изпратен, не можем да променим статуса');
+            return;
+        }
+        
+        // Връщаме празен масив с 200 статус вместо 500, за да не спира приложението
+        // Но първо логваме грешката за debugging
+        console.log(`[API] Връщаме празен масив заради грешка (статус 200 за да не спира приложението)`);
+        return res.status(200).json([]);
     }
 });
 
