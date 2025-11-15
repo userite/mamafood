@@ -461,6 +461,31 @@ function convertToLocalDateTimeString(isoString) {
     return getLocalDateTimeString(date);
 }
 
+// Функция за форматиране на дата във формат DD/MM/YYYY (фиксиран формат независимо от езика)
+function formatDateDDMMYYYY(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+}
+
+// Функция за форматиране на час във формат HH:MM (24-часов формат)
+function formatTimeHHMM(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    
+    return `${hours}:${minutes}`;
+}
+
 // Отваряне на модалния прозорец за добавяне
 function openModalForAdd() {
     const modal = document.getElementById('recordModal');
@@ -1192,26 +1217,14 @@ function createRecordCard(record) {
     const isFormula = record.situation && record.situation.startsWith('formula');
     const portionType = isFormula ? (typeof t !== 'undefined' ? t('prepared') : 'Приготвена') : (typeof t !== 'undefined' ? t('pumped') : 'Изцедена');
     
-    // Форматиране на дата и час - използване на локалния формат според избрания език
+    // Форматиране на дата и час - фиксиран формат DD/MM/YYYY независимо от езика
     const recordDate = new Date(record.datetime);
     
-    // Определяне на locale според текущия език (от i18n.js или localStorage)
-    const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
-    const locale = (lang === 'en') ? 'en-US' : 'bg-BG';
+    // Форматиране на дата във формат DD/MM/YYYY
+    const formattedDate = formatDateDDMMYYYY(recordDate);
     
-    // Форматиране на дата според локалните настройки
-    const formattedDate = recordDate.toLocaleDateString(locale, { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
-    });
-    
-    // Форматиране на час според локалните настройки (24-часов формат)
-    const formattedTime = recordDate.toLocaleTimeString(locale, { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false
-    });
+    // Форматиране на час във формат HH:MM (24-часов формат)
+    const formattedTime = formatTimeHHMM(recordDate);
     
     // Изчисляване на срок на годност
     const expiryDate = new Date(recordDate.getTime() + situation.validityHours * 60 * 60 * 1000);
@@ -1238,17 +1251,9 @@ function createRecordCard(record) {
         }
     }
     
-    // Форматиране на срока на годност - използване на локалния формат според избрания език
-    const expiryDateFormatted = expiryDate.toLocaleDateString(locale, { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit' 
-    });
-    const expiryTimeFormatted = expiryDate.toLocaleTimeString(locale, { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false
-    });
+    // Форматиране на срока на годност - фиксиран формат DD/MM/YYYY HH:MM
+    const expiryDateFormatted = formatDateDDMMYYYY(expiryDate);
+    const expiryTimeFormatted = formatTimeHHMM(expiryDate);
     const formattedExpiry = `${expiryDateFormatted} ${expiryTimeFormatted}`;
     
     // Получаване на номера на порцията (ако има)
