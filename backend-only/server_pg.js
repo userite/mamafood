@@ -295,9 +295,34 @@ app.get('/api/records/:child_code', async (req, res) => {
         const upperChildCode = child_code.toUpperCase();
         console.log(`[API] GET /api/records/${child_code} -> търсене за код: "${upperChildCode}"`);
         
+        // Проверка дали таблицата съществува
+        try {
+            const tableCheck = await pool.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'records'
+                );
+            `);
+            const tableExists = tableCheck.rows[0].exists;
+            console.log(`[API] Таблицата 'records' съществува: ${tableExists}`);
+            
+            if (!tableExists) {
+                console.warn('[API] ⚠️ Таблицата "records" не съществува! Връщаме празен масив.');
+                return res.json([]);
+            }
+        } catch (tableCheckError) {
+            console.error('[API] Грешка при проверка на таблицата:', tableCheckError);
+            // Продължаваме напред, може да работи и без проверката
+        }
+        
         // Първо проверим какви кодове има в базата (за debug)
-        const allCodesCheck = await pool.query('SELECT DISTINCT UPPER(child_code) as code FROM records');
-        console.log(`[API] Налични кодове в базата:`, allCodesCheck.rows.map(r => r.code));
+        try {
+            const allCodesCheck = await pool.query('SELECT DISTINCT UPPER(child_code) as code FROM records');
+            console.log(`[API] Налични кодове в базата:`, allCodesCheck.rows.map(r => r.code));
+        } catch (codesError) {
+            console.warn('[API] Грешка при проверка на кодовете (продължавам):', codesError.message);
+        }
         
         const result = await pool.query(
             'SELECT * FROM records WHERE UPPER(child_code) = UPPER($1) ORDER BY datetime DESC',
@@ -328,8 +353,16 @@ app.get('/api/records/:child_code', async (req, res) => {
         
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching records:', error);
-        res.status(500).json({ error: error.message });
+        console.error('[API] ❌ Грешка при зареждане на записи:', error);
+        console.error('[API] Error name:', error.name);
+        console.error('[API] Error message:', error.message);
+        console.error('[API] Error code:', error.code);
+        console.error('[API] Error detail:', error.detail);
+        console.error('[API] Stack trace:', error.stack);
+        
+        // Връщаме празен масив вместо 500, за да не спира приложението
+        console.log(`[API] Връщаме празен масив заради грешка`);
+        res.json([]);
     }
 });
 
