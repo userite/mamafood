@@ -99,15 +99,41 @@ else if (process.env.DATABASE_URL_INTERNAL && !isRenderEnvironment) {
 // Priority 5: Use External URL (fallback)
 else if (process.env.DATABASE_URL) {
     connectionString = process.env.DATABASE_URL;
+    
+    // Extract hostname from URL for better detection
+    let hostname = '';
+    try {
+        const urlMatch = connectionString.match(/@([^:]+):/);
+        if (urlMatch) {
+            hostname = urlMatch[1];
+        }
+    } catch (e) {
+        // Ignore parsing errors
+    }
+    
     // Check if URL contains SSL requirement (most external URLs do)
     const isRenderPostgres = connectionString.includes('render.com') || 
-                             connectionString.includes('onrender.com');
+                             connectionString.includes('onrender.com') ||
+                             hostname.includes('render.com') ||
+                             hostname.includes('onrender.com') ||
+                             hostname.includes('dpg-'); // Render.com PostgreSQL hostname pattern
     const isCloudProvider = connectionString.includes('amazonaws.com') ||
                             connectionString.includes('azure.com') ||
-                            connectionString.includes('cloud.google.com');
+                            connectionString.includes('cloud.google.com') ||
+                            hostname.includes('amazonaws.com') ||
+                            hostname.includes('azure.com') ||
+                            hostname.includes('cloud.google.com');
     
     // For Render.com external connections, SSL is usually required
     useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
+    
+    console.log('[INFO] External URL Analysis:', {
+        hostname: hostname || 'N/A',
+        isRenderPostgres,
+        isCloudProvider,
+        useSSL,
+        isRenderEnvironment
+    });
     
     if (isRenderPostgres && !useSSL) {
         console.warn('[INFO] ⚠️ Render.com external URL без SSL - може да има проблеми с връзката!');
