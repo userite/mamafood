@@ -294,6 +294,13 @@ app.get('/api/records/:child_code', async (req, res) => {
         // Конвертиране в главни букви за case-insensitive търсене
         const upperChildCode = child_code.toUpperCase();
         console.log(`[API] GET /api/records/${child_code} -> търсене за код: "${upperChildCode}"`);
+        console.log(`[API] Database connection info:`, {
+            hasConnectionString: !!connectionString,
+            connectionStringPreview: connectionString ? connectionString.substring(0, 50) + '...' : 'N/A',
+            isInternal: connectionString === process.env.DATABASE_URL_INTERNAL,
+            isExternal: connectionString === process.env.DATABASE_URL,
+            useSSL: useSSL
+        });
         
         // Проверка дали таблицата съществува
         try {
@@ -324,6 +331,18 @@ app.get('/api/records/:child_code', async (req, res) => {
             console.warn('[API] Грешка при проверка на кодовете (продължавам):', codesError.message);
         }
         
+        // Проверка колко общо записа има за този код (без филтър по datetime)
+        try {
+            const countResult = await pool.query(
+                'SELECT COUNT(*) as total FROM records WHERE UPPER(child_code) = UPPER($1)',
+                [upperChildCode]
+            );
+            const totalCount = parseInt(countResult.rows[0].total);
+            console.log(`[API] Общо записи за код "${upperChildCode}": ${totalCount}`);
+        } catch (countError) {
+            console.warn('[API] Грешка при броене на записи (продължавам):', countError.message);
+        }
+        
         let result;
         try {
             result = await pool.query(
@@ -350,15 +369,21 @@ app.get('/api/records/:child_code', async (req, res) => {
         }
         
         if (result.rows.length > 0) {
-            console.log(`[API] Всички записи (детайли):`, result.rows.map(r => ({
-                id: r.id,
-                child_code: r.child_code,
-                record_number: r.record_number,
-                amount: r.amount,
-                situation: r.situation,
-                datetime: r.datetime,
-                notes: r.notes || null
-            })));
+            console.log(`[API] ========== ВСИЧКИ ЗАПИСИ ЗА КОД "${upperChildCode}" ==========`);
+            result.rows.forEach((r, idx) => {
+                console.log(`[API] Запис ${idx + 1}/${result.rows.length}:`, {
+                    id: r.id,
+                    child_code: r.child_code,
+                    record_number: r.record_number,
+                    amount: r.amount,
+                    situation: r.situation,
+                    datetime: r.datetime,
+                    notes: r.notes || null
+                });
+            });
+            console.log(`[API] ==========================================`);
+        } else {
+            console.warn(`[API] ⚠️ Няма намерени записи за код "${upperChildCode}"`);
         }
         
         res.json(result.rows);
