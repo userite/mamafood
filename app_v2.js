@@ -143,6 +143,7 @@ function loadSituations() {
         { id: 'heated', group: 'milk', name: 'Загрята', temp: 'стайна', duration: 1, unit: 'hour', validityHours: 1 },
         { id: 'taken-out', group: 'milk', name: 'Извадена неподгрята', temp: 'стайна', duration: 2, unit: 'hour', validityHours: 2 },
         // Ситуации за формула
+        { id: 'formula-prepared', group: 'formula', name: 'Приготвена (непипната)', temp: 'до 25°C', duration: 2, unit: 'hour', validityHours: 2 },
         { id: 'formula-fresh', group: 'formula', name: 'Току-що приготвена', temp: 'стайна', duration: 2, unit: 'hour', validityHours: 2 },
         { id: 'formula-fridge', group: 'formula', name: 'В хладилник', temp: '0-4°C', duration: 24, unit: 'hour', validityHours: 24 },
         { id: 'formula-drunk', group: 'formula', name: 'Бебето е пило', temp: 'стайна', duration: 1, unit: 'hour', validityHours: 1 },
@@ -362,9 +363,62 @@ function setupEventListeners() {
     
     // Форма за запис
     if (recordForm) {
+        // Деактивиране на формата по подразбиране, за да предотвратим множествено submit
+        recordForm.setAttribute('data-submitting', 'false');
+        
         recordForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            saveRecord();
+            e.stopImmediatePropagation(); // Спиране на всички други event listeners
+            
+            // КРИТИЧНО: Деактивиране на формата ВЕДНАГА, преди дори да проверя флага
+            // Това предотвратява всички следващи submit-и
+            const submitButton = recordForm.querySelector('button[type="submit"]');
+            if (submitButton && submitButton.disabled) {
+                console.warn('[Form] ⚠️ Бутонът вече е деактивиран, игнорирам submit...');
+                return;
+            }
+            
+            // КРИТИЧНО: Проверка на data атрибута ПРЕДИ всичко друго (по-бързо от променлива)
+            if (recordForm.getAttribute('data-submitting') === 'true' || isSaving) {
+                console.warn('[Form] ⚠️ Вече се запазва (data-submitting или isSaving), игнорирам submit...');
+                return;
+            }
+            
+            // Задаваме И двата флага ВЕДНАГА, синхронно, преди всичко друго
+            recordForm.setAttribute('data-submitting', 'true');
+            isSaving = true;
+            
+            // Деактивиране на бутона ВЕДНАГА, преди всичко друго
+            const originalText = submitButton ? submitButton.textContent : '';
+            
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = typeof t !== 'undefined' ? 'Запазване...' : 'Запазване...';
+            }
+            
+            // Деактивиране на цялата форма
+            const formInputs = recordForm.querySelectorAll('input, select, textarea, button');
+            formInputs.forEach(input => {
+                if (input !== submitButton) {
+                    input.disabled = true;
+                }
+            });
+            
+            // Извикване на функцията за запазване
+            saveRecord().finally(() => {
+                // Реактивиране на всичко след завършване
+                recordForm.setAttribute('data-submitting', 'false');
+                isSaving = false;
+                
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalText;
+                }
+                
+                formInputs.forEach(input => {
+                    input.disabled = false;
+                });
+            });
         });
     }
     
@@ -382,13 +436,29 @@ function setupEventListeners() {
 }
 
 // Функция за получаване на локално време в правилен формат за datetime-local input
+// datetime-local input изисква ISO формат (YYYY-MM-DDTHH:mm), но браузърът автоматично
+// показва стойността според локалните настройки на устройството
 function getLocalDateTimeString(date = new Date()) {
+    // Уверяваме се, че използваме локално време (не UTC)
+    // getDate(), getMonth(), getHours() и т.н. вече връщат локално време
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
+    // Връщаме в ISO формат, но с локално време (без timezone offset)
     return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Функция за конвертиране на ISO datetime към локално време за datetime-local input
+function convertToLocalDateTimeString(isoString) {
+    if (!isoString) return '';
+    
+    // Създаваме Date обект от ISO string (което може да е UTC)
+    const date = new Date(isoString);
+    
+    // Връщаме локалното време в правилния формат за datetime-local
+    return getLocalDateTimeString(date);
 }
 
 // Отваряне на модалния прозорец за добавяне
@@ -431,9 +501,9 @@ function openModalForEdit(recordId) {
     document.getElementById('amount').value = Math.round(record.amount || 0);
     document.getElementById('situation').value = record.situation;
     
-    // Конвертиране на datetime към локално време
-    const recordDate = new Date(record.datetime);
-    document.getElementById('datetime').value = getLocalDateTimeString(recordDate);
+    // Конвертиране на datetime към локално време за datetime-local input
+    // Използваме функцията за конвертиране, която правилно обработва timezone-а
+    document.getElementById('datetime').value = convertToLocalDateTimeString(record.datetime);
     
     document.getElementById('notes').value = record.notes || '';
     document.getElementById('recordId').value = record.id;
@@ -467,13 +537,15 @@ const getAPIBase = () => {
         hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
         return 'http://localhost:3000';
     }
-    // Ако е на inex-project.net или pci.inex-project.net, използвай същия домейн
+    // Ако е на inex-project.net или pci.inex-project.net, използвай Render.com backend
     if (hostname === 'inex-project.net' || hostname === 'pci.inex-project.net' || hostname.endsWith('.inex-project.net')) {
-        // Използвай origin (протокол + hostname + порт) за да работи и в поддиректории
-        return window.location.origin;
+        // Backend е на Render.com, не на същия домейн
+        // ПРОМЕНИ ТОЗИ URL С ТВОЯТ RENDER.COM BACKEND URL!
+        return 'https://https://mamafood.onrender.com';
     }
-    // Иначе използвай production URL
-    return 'https://mamafood.onrender.com';
+    // Иначе използвай production URL (Render.com)
+    // ПРОМЕНИ ТОЗИ URL С ТВОЯТ RENDER.COM BACKEND URL!
+    return 'https://https://mamafood.onrender.com';
 };
 
 const API_BASE = getAPIBase();
@@ -501,118 +573,132 @@ async function getNextRecordNumber(childCode) {
 }
 
 // Запазване на запис
+let isSaving = false;
 async function saveRecord() {
-    const recordId = document.getElementById('recordId').value;
-    const amount = document.getElementById('amount').value;
-    const situation = document.getElementById('situation').value;
-    let datetime = document.getElementById('datetime').value;
-    const notes = document.getElementById('notes').value;
-    
-    // Конвертиране на локално време към ISO формат
-    if (datetime && !datetime.includes('Z') && !datetime.includes('+')) {
-        const localDate = new Date(datetime);
-        datetime = localDate.toISOString();
+    // Защита срещу множествено извикване - проверка (флагът вече е зададен в event listener-а)
+    if (!isSaving) {
+        console.warn('[saveRecord] ⚠️ Флагът не е зададен, но функцията е извикана! Задавам флага...');
+        isSaving = true;
     }
     
-    // Създаване на нов запис
-    const upperChildCode = (childCode || '').toUpperCase();
-    const newRecord = {
-        id: recordId || generateId(),
-        child_code: upperChildCode,
-        amount: parseInt(amount),
-        situation: situation,
-        datetime: datetime,
-        notes: notes,
-        timestamp: new Date().toISOString()
-    };
+    console.log('[saveRecord] 🚀 Започва запазване... (isSaving = true)');
     
-    // Добавяне или актуализиране на записа
-    if (recordId) {
-        // Редактиране - запазваме стария номер и child_code
-        const existingRecord = records.find(r => String(r.id) === String(recordId));
-        if (existingRecord) {
-            newRecord.record_number = existingRecord.record_number || existingRecord.recordNumber;
-            // Запазваме child_code от съществуващия запис (ако има)
-            if (existingRecord.child_code) {
-                newRecord.child_code = existingRecord.child_code;
+    try {
+        const recordId = document.getElementById('recordId').value;
+        const amount = document.getElementById('amount').value;
+        const situation = document.getElementById('situation').value;
+        let datetime = document.getElementById('datetime').value;
+        const notes = document.getElementById('notes').value;
+        
+        // Конвертиране на локално време към ISO формат
+        if (datetime && !datetime.includes('Z') && !datetime.includes('+')) {
+            const localDate = new Date(datetime);
+            datetime = localDate.toISOString();
+        }
+        
+        // Създаване на нов запис
+        const upperChildCode = (childCode || '').toUpperCase();
+        const newRecord = {
+            id: recordId || generateId(),
+            child_code: upperChildCode,
+            amount: parseInt(amount),
+            situation: situation,
+            datetime: datetime,
+            notes: notes,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Добавяне или актуализиране на записа
+        if (recordId) {
+            // Редактиране - запазваме стария номер и child_code
+            const existingRecord = records.find(r => String(r.id) === String(recordId));
+            if (existingRecord) {
+                newRecord.record_number = existingRecord.record_number || existingRecord.recordNumber;
+                // Запазваме child_code от съществуващия запис (ако има)
+                if (existingRecord.child_code) {
+                    newRecord.child_code = existingRecord.child_code;
+                }
             }
-        }
-        
-        const index = records.findIndex(r => r.id === recordId);
-        if (index !== -1) {
-            records[index] = newRecord;
-        }
-        
-        // Опит за синхронизация със сървъра (ако има)
-        try {
-            const response = await fetch(`${API_BASE}/api/records/${recordId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: newRecord.amount,
-                    situation: newRecord.situation,
-                    datetime: newRecord.datetime,
-                    notes: newRecord.notes
-                })
-            });
-            if (response.ok) {
-                // Успешно актуализиране - презареждаме записите от сървъра
-                await loadRecords();
-                showToast('Записът е актуализиран успешно!');
-            } else {
-                console.warn('Failed to update record on server');
+            
+            const index = records.findIndex(r => r.id === recordId);
+            if (index !== -1) {
+                records[index] = newRecord;
+            }
+            
+            // Опит за синхронизация със сървъра (ако има)
+            try {
+                const response = await fetch(`${API_BASE}/api/records/${recordId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount: newRecord.amount,
+                        situation: newRecord.situation,
+                        datetime: newRecord.datetime,
+                        notes: newRecord.notes
+                    })
+                });
+                if (response.ok) {
+                    // Успешно актуализиране - презареждаме записите от сървъра
+                    await loadRecords();
+                    showToast('Записът е актуализиран успешно!');
+                } else {
+                    console.warn('Failed to update record on server');
+                    // Актуализираме локално поне
+                    renderRecords();
+                    saveRecords();
+                }
+            } catch (error) {
+                console.warn('Could not sync update to server:', error);
                 // Актуализираме локално поне
                 renderRecords();
                 saveRecords();
             }
-        } catch (error) {
-            console.warn('Could not sync update to server:', error);
-            // Актуализираме локално поне
-            renderRecords();
-            saveRecords();
-        }
-    } else {
-        // Нов запис - получаваме номер от сървъра или изчисляваме локално
-        newRecord.record_number = await getNextRecordNumber(childCode);
-        
-        // Опит за синхронизация със сървъра
-        try {
-            // Уверяваме се, че кодът е в главни букви
-            const upperChildCode = (childCode || '').toUpperCase();
-            const response = await fetch(`${API_BASE}/api/records`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    child_code: upperChildCode,
-                    record_number: newRecord.record_number,
-                    amount: newRecord.amount,
-                    situation: newRecord.situation,
-                    datetime: newRecord.datetime,
-                    notes: newRecord.notes
-                })
-            });
+        } else {
+            // Нов запис - получаваме номер от сървъра или изчисляваме локално
+            newRecord.record_number = await getNextRecordNumber(childCode);
             
-            if (response.ok) {
-                const serverRecord = await response.json();
-                newRecord.id = serverRecord.id;
-                newRecord.server_id = serverRecord.id;
+            // Опит за синхронизация със сървъра
+            try {
+                // Уверяваме се, че кодът е в главни букви
+                const upperChildCode = (childCode || '').toUpperCase();
+                const response = await fetch(`${API_BASE}/api/records`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        child_code: upperChildCode,
+                        record_number: newRecord.record_number,
+                        amount: newRecord.amount,
+                        situation: newRecord.situation,
+                        datetime: newRecord.datetime,
+                        notes: newRecord.notes
+                    })
+                });
+                
+                if (response.ok) {
+                    const serverRecord = await response.json();
+                    newRecord.id = serverRecord.id;
+                    newRecord.server_id = serverRecord.id;
+                }
+            } catch (error) {
+                console.warn('Could not sync new record to server:', error);
             }
-        } catch (error) {
-            console.warn('Could not sync new record to server:', error);
+            
+            records.push(newRecord);
+            
+            // Презареждаме записите от сървъра след добавяне
+            await loadRecords();
+            showToast('Записът е добавен успешно!');
         }
         
-        records.push(newRecord);
+        // Затваряне на модалния прозорец
+        closeModal();
         
-        // Презареждаме записите от сървъра след добавяне
-        await loadRecords();
-        showToast('Записът е добавен успешно!');
+        // Актуализиране на статистиката
+        updateStats();
+    } finally {
+        // Винаги освобождаваме флага, дори при грешка
+        isSaving = false;
     }
-    
-    // Затваряне на модалния прозорец
-    closeModal();
-    
-    // Актуализиране на статистиката
-    updateStats();
 }
 
 // Изтриване на запис
@@ -763,6 +849,11 @@ function renderRecords() {
             try {
                 const recordDate = new Date(record.datetime);
                 if (isNaN(recordDate.getTime())) {
+                    console.warn(`[renderRecords] Запис ${record.id} пропуснат: невалидна дата`, {
+                        datetime: record.datetime,
+                        parsedDate: recordDate
+                    });
+                    skippedRecords.push({ reason: 'invalid date', record });
                     return;
                 }
                 
@@ -786,6 +877,25 @@ function renderRecords() {
         console.log(`[renderRecords] Изтекли записи: ${expiredRecords.length}`);
         console.log(`[renderRecords] Пропуснати записи: ${skippedRecords.length}`);
         
+        // Подробна информация за пропуснатите записи
+        if (skippedRecords.length > 0) {
+            console.warn(`[renderRecords] ========== ПРОПУСНАТИ ЗАПИСИ ==========`);
+            skippedRecords.forEach((skipped, idx) => {
+                console.warn(`[renderRecords] Пропуснат запис ${idx + 1}:`, {
+                    reason: skipped.reason,
+                    recordId: skipped.record?.id,
+                    child_code: skipped.record?.child_code,
+                    situation: skipped.record?.situation,
+                    datetime: skipped.record?.datetime,
+                    amount: skipped.record?.amount,
+                    error: skipped.error,
+                    situationId: skipped.situationId,
+                    availableSituations: skipped.availableSituations
+                });
+            });
+            console.warn(`[renderRecords] ======================================`);
+        }
+        
         // Подробна информация за изтеклите записи
         if (expiredRecords.length > 0) {
             console.log(`[renderRecords] ========== ИЗТЕКЛИ ЗАПИСИ ==========`);
@@ -800,9 +910,7 @@ function renderRecords() {
         } else {
             console.log(`[renderRecords] Няма изтекли записи - всички са активни или са по-стари от 2 дена`);
         }
-        if (skippedRecords.length > 0) {
-            console.warn(`[renderRecords] Пропуснати записи детайли:`, skippedRecords);
-        }
+        // Това вече е направено по-горе с по-подробна информация
         
         // Детайлна информация за всеки запис
         console.log(`[renderRecords] Детайли за активни записи:`, activeRecords.map(r => ({
@@ -1086,10 +1194,26 @@ function createRecordCard(record) {
     const isFormula = record.situation && record.situation.startsWith('formula');
     const portionType = isFormula ? (typeof t !== 'undefined' ? t('prepared') : 'Приготвена') : (typeof t !== 'undefined' ? t('pumped') : 'Изцедена');
     
-    // Форматиране на дата и час
+    // Форматиране на дата и час - използване на локалния формат според избрания език
     const recordDate = new Date(record.datetime);
-    const formattedDate = recordDate.toLocaleDateString();
-    const formattedTime = recordDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    // Определяне на locale според текущия език (от i18n.js или localStorage)
+    const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+    const locale = (lang === 'en') ? 'en-US' : 'bg-BG';
+    
+    // Форматиране на дата според локалните настройки
+    const formattedDate = recordDate.toLocaleDateString(locale, { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+    });
+    
+    // Форматиране на час според локалните настройки (24-часов формат)
+    const formattedTime = recordDate.toLocaleTimeString(locale, { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false
+    });
     
     // Изчисляване на срок на годност
     const expiryDate = new Date(recordDate.getTime() + situation.validityHours * 60 * 60 * 1000);
@@ -1116,9 +1240,18 @@ function createRecordCard(record) {
         }
     }
     
-    // Форматиране на срока на годност
-    const formattedExpiry = expiryDate.toLocaleDateString() + ' ' + 
-                           expiryDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    // Форматиране на срока на годност - използване на локалния формат според избрания език
+    const expiryDateFormatted = expiryDate.toLocaleDateString(locale, { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+    });
+    const expiryTimeFormatted = expiryDate.toLocaleTimeString(locale, { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false
+    });
+    const formattedExpiry = `${expiryDateFormatted} ${expiryTimeFormatted}`;
     
     // Получаване на номера на порцията (ако има)
     const recordNumber = record.record_number || record.recordNumber || '';
@@ -1772,8 +1905,52 @@ async function subscribeToPush() {
     }
 
     try {
-        // Get service worker registration
-        const registration = await navigator.serviceWorker.ready;
+        // Проверка дали Service Worker е регистриран
+        let registration = null;
+        
+        // Опитваме се да получим активна регистрация
+        try {
+            registration = await navigator.serviceWorker.ready;
+        } catch (e) {
+            console.warn('[subscribeToPush] Service Worker не е готов, опитвам се да го регистрирам...');
+            
+            // Опитваме се да регистрираме Service Worker
+            if (window.location.protocol === 'file:') {
+                alert('Service Worker не може да работи с file:// протокол. Използвай HTTP сървър (например http://localhost:8000)');
+                return;
+            }
+            
+            registration = await navigator.serviceWorker.register('./service-worker.js');
+            console.log('[subscribeToPush] Service Worker регистриран:', registration);
+            
+            // Изчакваме активирането
+            await new Promise((resolve) => {
+                if (registration.installing) {
+                    registration.installing.addEventListener('statechange', function() {
+                        if (this.state === 'activated') {
+                            resolve();
+                        }
+                    });
+                } else if (registration.waiting) {
+                    registration.waiting.addEventListener('statechange', function() {
+                        if (this.state === 'activated') {
+                            resolve();
+                        }
+                    });
+                } else if (registration.active) {
+                    resolve();
+                }
+            });
+            
+            // Изчакваме да стане ready
+            registration = await navigator.serviceWorker.ready;
+        }
+        
+        if (!registration || !registration.active) {
+            throw new Error('Service Worker не е активен');
+        }
+        
+        console.log('[subscribeToPush] Service Worker е готов:', registration);
         
         // Get VAPID public key from server
         const response = await fetch(`${API_BASE}/api/push/publicKey`);

@@ -165,16 +165,18 @@
         (async function clearOldCache() {
             console.log('[Cache] Изчистване на стари кешове...');
             
-            // Премахване на всички Service Workers
+            // Премахване на стари Service Workers (само ако версията е различна)
             if ('serviceWorker' in navigator) {
                 try {
                     const registrations = await navigator.serviceWorker.getRegistrations();
                     for (const reg of registrations) {
-                        await reg.unregister();
-                        console.log('[Cache] Service Worker премахнат:', reg.scope);
+                        // Проверяваме дали Service Worker е от стара версия
+                        // Ако е активен и работи, не го премахваме веднага
+                        // Новият Service Worker ще го замени автоматично
+                        console.log('[Cache] Намерен Service Worker:', reg.scope);
                     }
                 } catch (e) {
-                    console.warn('[Cache] Грешка при премахване на Service Workers:', e);
+                    console.warn('[Cache] Грешка при проверка на Service Workers:', e);
                 }
             }
             

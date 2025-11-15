@@ -4,6 +4,14 @@
 // Backend-only version (for deployment on Render.com)
 // ============================================
 
+// Load environment variables from .env file (for local development)
+try {
+    require('dotenv').config();
+} catch (e) {
+    // dotenv не е инсталиран, но това е OK за production (Render.com използва environment variables)
+    console.log('[INFO] dotenv не е намерен - използвам environment variables директно');
+}
+
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -19,16 +27,74 @@ const PORT = process.env.PORT || 3000;
 
 // Build database config - supports DATABASE_URL or individual variables
 // Render.com provides DATABASE_URL automatically
+// 
+// Connection String Priority:
+// 1. DATABASE_URL (for production on Render.com or external access)
+// 2. DATABASE_URL_INTERNAL (for internal access when both services are on Render.com)
+// 3. Individual variables (POSTGRES_HOST, POSTGRES_USER, etc.)
+
+// Determine which connection string to use
+let connectionString = process.env.DATABASE_URL;
+let useSSL = false;
+
+// If we're on Render.com and have internal URL, prefer it (faster, no SSL needed)
+if (process.env.DATABASE_URL_INTERNAL && process.env.RENDER) {
+    connectionString = process.env.DATABASE_URL_INTERNAL;
+    useSSL = false;
+    console.log('[INFO] Използвам Internal URL (Render.com internal network)');
+} else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
+    // Use internal URL if no external URL is provided
+    connectionString = process.env.DATABASE_URL_INTERNAL;
+    useSSL = false;
+    console.log('[INFO] Използвам Internal URL (няма External URL)');
+} else if (process.env.DATABASE_URL) {
+    // External URL - usually requires SSL
+    connectionString = process.env.DATABASE_URL;
+    // Check if URL contains SSL requirement (most external URLs do)
+    useSSL = connectionString.includes('render.com') || 
+             connectionString.includes('amazonaws.com') ||
+             connectionString.includes('azure.com') ||
+             process.env.DATABASE_URL_SSL === 'true';
+    console.log('[INFO] Използвам External URL');
+}
+
 const dbConfig = {
-    connectionString: process.env.DATABASE_URL,
+    connectionString: connectionString,
     // Or individual variables if DATABASE_URL is not set
     host: process.env.POSTGRES_HOST || process.env.DB_HOST,
     user: process.env.POSTGRES_USER || process.env.DB_USER,
     password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD,
     database: process.env.POSTGRES_DATABASE || process.env.DB_NAME,
     port: process.env.POSTGRES_PORT || process.env.DB_PORT || 5432,
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+    ssl: connectionString ? (useSSL ? { rejectUnauthorized: false } : false) : false
 };
+
+// Diagnostic: Check what config we have
+console.log('\n📊 Database Configuration:');
+if (connectionString) {
+    const urlPreview = connectionString.substring(0, 50) + '...';
+    console.log(`   ✅ Използвам: ${urlPreview}`);
+    if (process.env.DATABASE_URL_INTERNAL && process.env.DATABASE_URL) {
+        console.log(`   📌 Internal URL: ${process.env.DATABASE_URL_INTERNAL.substring(0, 30)}...`);
+        console.log(`   📌 External URL: ${process.env.DATABASE_URL.substring(0, 30)}...`);
+    } else if (process.env.DATABASE_URL_INTERNAL) {
+        console.log(`   📌 Internal URL: ${process.env.DATABASE_URL_INTERNAL.substring(0, 30)}...`);
+    } else if (process.env.DATABASE_URL) {
+        console.log(`   📌 External URL: ${process.env.DATABASE_URL.substring(0, 30)}...`);
+    }
+    console.log(`   🔒 SSL: ${useSSL ? 'Да' : 'Не'}`);
+} else {
+    console.log('   ⚠️  DATABASE_URL не е зададен');
+    if (dbConfig.host) console.log(`   ✅ Host: ${dbConfig.host}`);
+    if (dbConfig.user) console.log(`   ✅ User: ${dbConfig.user}`);
+    if (dbConfig.database) console.log(`   ✅ Database: ${dbConfig.database}`);
+    if (!dbConfig.host && !dbConfig.user && !dbConfig.database) {
+        console.log('   ❌ Няма конфигурирани параметри за база данни!');
+        console.log('\n   💡 За локално тестване създай backend-only/.env файл с:');
+        console.log('      DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mamafood');
+        console.log('      PORT=3000\n');
+    }
+}
 
 // Remove undefined properties if using individual vars
 if (!dbConfig.connectionString) {
@@ -57,7 +123,13 @@ pool.on('error', (err) => {
         const result = await pool.query('SELECT NOW()');
         console.log('✅ Database connection test successful:', result.rows[0].now);
     } catch (err) {
-        console.error('❌ Database connection test failed:', err.message);
+        console.error('\n❌ Database connection test failed!');
+        console.error('   Грешка:', err.message);
+        console.error('\n💡 Решения:');
+        console.error('   1. Провери дали PostgreSQL е инсталиран и работи');
+        console.error('   2. Провери .env файл в backend-only/ директорията');
+        console.error('   3. За локална база: DATABASE_URL=postgresql://postgres:парола@localhost:5432/mamafood');
+        console.error('   4. За Render.com: Вземи DATABASE_URL от Render Dashboard\n');
     }
 })();
 
@@ -193,16 +265,56 @@ app.post('/api/push/test', async (req, res) => {
 // Records API
 // ============================================
 
+// Helper function to normalize datetime to ISO format for PostgreSQL
+function normalizeDateTime(datetime) {
+    if (!datetime) {
+        return null;
+    }
+    
+    // If already in ISO format with timezone (contains Z or +), return as is
+    if (typeof datetime === 'string' && (datetime.includes('Z') || datetime.includes('+'))) {
+        return datetime;
+    }
+    
+    // Try to parse and convert to ISO format
+    try {
+        const date = new Date(datetime);
+        if (isNaN(date.getTime())) {
+            throw new Error('Invalid date format');
+        }
+        return date.toISOString();
+    } catch (error) {
+        throw new Error(`Invalid datetime format: ${datetime}`);
+    }
+}
+
 app.get('/api/records/:child_code', async (req, res) => {
     try {
         const { child_code } = req.params;
         // Конвертиране в главни букви за case-insensitive търсене
         const upperChildCode = child_code.toUpperCase();
+        console.log(`[API] GET /api/records/${child_code} -> търсене за код: "${upperChildCode}"`);
+        
+        // Първо проверим какви кодове има в базата (за debug)
+        const allCodesCheck = await pool.query('SELECT DISTINCT UPPER(child_code) as code FROM records');
+        console.log(`[API] Налични кодове в базата:`, allCodesCheck.rows.map(r => r.code));
+        
         const result = await pool.query(
             'SELECT * FROM records WHERE UPPER(child_code) = UPPER($1) ORDER BY datetime DESC',
             [upperChildCode]
         );
         console.log(`[API] Заявка за записи за код: "${upperChildCode}", Намерени: ${result.rows.length} записа`);
+        
+        if (result.rows.length > 0) {
+            console.log(`[API] Първите 3 записа:`, result.rows.slice(0, 3).map(r => ({
+                id: r.id,
+                child_code: r.child_code,
+                record_number: r.record_number,
+                amount: r.amount,
+                situation: r.situation
+            })));
+        }
+        
         res.json(result.rows);
     } catch (error) {
         console.error('Error fetching records:', error);
@@ -240,6 +352,15 @@ app.post('/api/records', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         
+        // Normalize datetime to ISO format
+        let normalizedDateTime;
+        try {
+            normalizedDateTime = normalizeDateTime(datetime);
+        } catch (error) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: error.message });
+        }
+        
         // Ensure child exists (case-insensitive)
         const upperChildCode = (child_code || '').toUpperCase();
         const childCheck = await client.query(
@@ -262,13 +383,13 @@ app.post('/api/records', async (req, res) => {
         
         const result = await client.query(
             'INSERT INTO records (child_code, record_number, amount, situation, datetime, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-            [upperChildCode, record_number, amount, situation, datetime, notes || null]
+            [upperChildCode, record_number, amount, situation, normalizedDateTime, notes || null]
         );
         
         await client.query('COMMIT');
-        console.log(`✅ Added record #${record_number} for child ${upperChildCode}`);
+        console.log(`✅ Added record #${record_number} for child ${upperChildCode} with datetime: ${normalizedDateTime}`);
         
-        res.json({ id: result.rows[0].id, ...req.body });
+        res.json({ id: result.rows[0].id, ...req.body, datetime: normalizedDateTime });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error adding record:', error);
@@ -283,11 +404,22 @@ app.put('/api/records/:id', async (req, res) => {
         const { id } = req.params;
         const { amount, situation, datetime, notes } = req.body;
         
+        // Normalize datetime to ISO format if provided
+        let normalizedDateTime = datetime;
+        if (datetime) {
+            try {
+                normalizedDateTime = normalizeDateTime(datetime);
+            } catch (error) {
+                return res.status(400).json({ error: error.message });
+            }
+        }
+        
         await pool.query(
             'UPDATE records SET amount = $1, situation = $2, datetime = $3, notes = $4 WHERE id = $5',
-            [amount, situation, datetime, notes || null, id]
+            [amount, situation, normalizedDateTime, notes || null, id]
         );
         
+        console.log(`✅ Updated record #${id} with datetime: ${normalizedDateTime}`);
         res.json({ success: true });
     } catch (error) {
         console.error('Error updating record:', error);
