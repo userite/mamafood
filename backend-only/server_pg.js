@@ -545,10 +545,11 @@ app.post('/api/children', async (req, res) => {
 });
 
 app.get('/api/children/:child_code', async (req, res) => {
+    let upperChildCode = '';
     try {
         const { child_code } = req.params;
         // Конвертиране в главни букви за case-insensitive търсене
-        const upperChildCode = child_code.toUpperCase();
+        upperChildCode = (child_code || '').toUpperCase();
         console.log(`[API] GET /api/children/${child_code} -> търсене за код: "${upperChildCode}"`);
         
         // Проверка дали таблицата съществува
@@ -565,7 +566,7 @@ app.get('/api/children/:child_code', async (req, res) => {
             
             if (!tableExists) {
                 console.warn('[API] ⚠️ Таблицата "children" не съществува! Връщаме празен обект.');
-                return res.json({ child_code: upperChildCode, name: null, last_accessed: null });
+                return res.status(200).json({ child_code: upperChildCode, name: null, last_accessed: null });
             }
         } catch (tableCheckError) {
             console.error('[API] Грешка при проверка на таблицата:', tableCheckError);
@@ -580,11 +581,11 @@ app.get('/api/children/:child_code', async (req, res) => {
         if (result.rows.length === 0) {
             // Връщаме празен обект вместо 404, за да не причинява грешки във frontend-а
             console.log(`[API] Дете с код "${upperChildCode}" не е намерено, връщаме празен обект`);
-            return res.json({ child_code: upperChildCode, name: null, last_accessed: null });
+            return res.status(200).json({ child_code: upperChildCode, name: null, last_accessed: null });
         }
         
         console.log(`[API] Намерено дете:`, result.rows[0]);
-        res.json(result.rows[0]);
+        return res.status(200).json(result.rows[0]);
     } catch (error) {
         console.error('[API] ❌ Грешка при зареждане на дете:', error);
         console.error('[API] Error name:', error.name);
@@ -593,10 +594,12 @@ app.get('/api/children/:child_code', async (req, res) => {
         console.error('[API] Error detail:', error.detail);
         console.error('[API] Stack trace:', error.stack);
         
-        // Връщаме празен обект вместо 500, за да не спира приложението
-        const upperChildCode = (req.params.child_code || '').toUpperCase();
+        // Връщаме празен обект с 200 статус вместо 500, за да не спира приложението
+        if (!upperChildCode) {
+            upperChildCode = (req.params?.child_code || '').toUpperCase();
+        }
         console.log(`[API] Връщаме празен обект за код: "${upperChildCode}"`);
-        res.json({ child_code: upperChildCode, name: null, last_accessed: null });
+        return res.status(200).json({ child_code: upperChildCode, name: null, last_accessed: null });
     }
 });
 
