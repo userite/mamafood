@@ -669,13 +669,20 @@ const getAPIBase = () => {
     // Ако е на inex-project.net или pci.inex-project.net, използвай Render.com backend
     if (hostname === 'inex-project.net' || hostname === 'pci.inex-project.net' || hostname.endsWith('.inex-project.net')) {
         // Backend е на Render.com, не на същия домейн
-        return 'https://mamafood.onrender.com';
+        const backendUrl = 'https://mamafood.onrender.com';
+        console.log(`[getAPIBase] Hostname: ${hostname} -> Backend URL: ${backendUrl}`);
+        return backendUrl;
     }
     // Иначе използвай production URL (Render.com)
-    return 'https://mamafood.onrender.com';
+    const backendUrl = 'https://mamafood.onrender.com';
+    console.log(`[getAPIBase] Hostname: ${hostname} -> Backend URL: ${backendUrl}`);
+    return backendUrl;
 };
 
 const API_BASE = getAPIBase();
+console.log(`[API Config] API_BASE е зададен на: ${API_BASE}`);
+console.log(`[API Config] Window hostname: ${window.location.hostname}`);
+console.log(`[API Config] Window origin: ${window.location.origin}`);
 
 // Функция за получаване на следващия номер на порцията от сървъра
 async function getNextRecordNumber(childCode) {
