@@ -200,23 +200,15 @@ function updateUI() {
     // Update options
     updateSelectOptions();
     
-    // Update datetime input lang attribute and format hint
-    const datetimeInput = document.getElementById('datetime');
+    // Update date input lang attribute and format hint
+    const dateInput = document.getElementById('dateInput');
     const datetimeFormatHint = document.getElementById('datetimeFormatHint');
-    if (datetimeInput) {
+    if (dateInput) {
         const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
-        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+        dateInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
         // Update format hint
         if (datetimeFormatHint) {
             datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
-        }
-        // Force re-render of the input value to update format
-        if (datetimeInput.value) {
-            const currentValue = datetimeInput.value;
-            datetimeInput.value = '';
-            setTimeout(() => {
-                datetimeInput.value = currentValue;
-            }, 10);
         }
     }
     

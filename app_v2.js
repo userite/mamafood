@@ -609,7 +609,8 @@ function openModalForAdd() {
     const modal = document.getElementById('recordModal');
     const modalTitle = document.getElementById('modalTitle');
     const recordForm = document.getElementById('recordForm');
-    const datetimeInput = document.getElementById('datetime');
+    const dateInput = document.getElementById('dateInput');
+    const timeInput = document.getElementById('timeInput');
     const datetimeFormatHint = document.getElementById('datetimeFormatHint');
     
     // Изчистване на формата
@@ -617,15 +618,20 @@ function openModalForAdd() {
     
     // Обновяване на lang атрибута и format hint според текущия език
     const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
-    if (datetimeInput) {
-        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+    if (dateInput) {
+        dateInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
     }
     if (datetimeFormatHint) {
         datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
     }
     
     // Задаване на текущата дата и час (ЛОКАЛНО време)
-    datetimeInput.value = getLocalDateTimeString();
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    if (dateInput) dateInput.value = dateStr;
+    if (timeInput) timeInput.value = timeStr;
     
     // Задаване на заглавие
     modalTitle.textContent = typeof t !== 'undefined' ? t('addPortion') : 'Добавяне на нова порция';
@@ -641,7 +647,8 @@ function openModalForAdd() {
 function openModalForEdit(recordId) {
     const modal = document.getElementById('recordModal');
     const modalTitle = document.getElementById('modalTitle');
-    const datetimeInput = document.getElementById('datetime');
+    const dateInput = document.getElementById('dateInput');
+    const timeInput = document.getElementById('timeInput');
     const datetimeFormatHint = document.getElementById('datetimeFormatHint');
     
     // Конвертиране на recordId към правилния тип (string или number)
@@ -654,8 +661,8 @@ function openModalForEdit(recordId) {
     
     // Обновяване на lang атрибута и format hint според текущия език
     const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
-    if (datetimeInput) {
-        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+    if (dateInput) {
+        dateInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
     }
     if (datetimeFormatHint) {
         datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
@@ -665,9 +672,13 @@ function openModalForEdit(recordId) {
     document.getElementById('amount').value = Math.round(record.amount || 0);
     document.getElementById('situation').value = record.situation;
     
-    // Конвертиране на datetime към локално време за datetime-local input
-    // Използваме функцията за конвертиране, която правилно обработва timezone-а
-    datetimeInput.value = convertToLocalDateTimeString(record.datetime);
+    // Конвертиране на datetime към локално време за date и time input полета
+    const recordDate = new Date(record.datetime);
+    const dateStr = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}-${String(recordDate.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(recordDate.getHours()).padStart(2, '0')}:${String(recordDate.getMinutes()).padStart(2, '0')}`;
+    
+    if (dateInput) dateInput.value = dateStr;
+    if (timeInput) timeInput.value = timeStr;
     
     document.getElementById('notes').value = record.notes || '';
     document.getElementById('recordId').value = record.id;
@@ -756,22 +767,40 @@ async function saveRecord() {
         const recordId = document.getElementById('recordId').value;
         const amount = document.getElementById('amount').value;
         const situation = document.getElementById('situation').value;
-        let datetime = document.getElementById('datetime').value;
+        const dateInput = document.getElementById('dateInput');
+        const timeInput = document.getElementById('timeInput');
         const notes = document.getElementById('notes').value;
+        
+        // Комбиниране на date и time в datetime
+        const dateValue = dateInput ? dateInput.value : '';
+        const timeValue = timeInput ? timeInput.value : '';
+        let datetime = '';
+        
+        if (dateValue && timeValue) {
+            datetime = `${dateValue}T${timeValue}`;
+        } else {
+            // Fallback към скритото datetime поле ако съществува
+            const hiddenDatetime = document.getElementById('datetime');
+            datetime = hiddenDatetime ? hiddenDatetime.value : '';
+        }
         
         console.log('[saveRecord] Стойности от формата:', {
             recordId: recordId,
             amount: amount,
             situation: situation,
+            dateValue: dateValue,
+            timeValue: timeValue,
             datetime: datetime,
             notes: notes
         });
         
         // Валидация на задължителните полета
-        if (!amount || !situation || !datetime) {
+        if (!amount || !situation || !datetime || !dateValue || !timeValue) {
             console.error('[saveRecord] ❌ Липсват задължителни полета:', {
                 has_amount: !!amount,
                 has_situation: !!situation,
+                has_date: !!dateValue,
+                has_time: !!timeValue,
                 has_datetime: !!datetime
             });
             showToast('Моля попълнете всички задължителни полета!');

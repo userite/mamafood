@@ -104,7 +104,11 @@
 
                     <div class="form-group">
                         <label for="datetime" data-i18n="datetimeLabel">Дата и час на изцеждане</label>
-                        <input type="datetime-local" id="datetime" name="datetime" lang="bg-BG" required>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="date" id="dateInput" name="date" lang="bg-BG" required style="flex: 1;">
+                            <input type="time" id="timeInput" name="time" required style="flex: 1;">
+                        </div>
+                        <input type="hidden" id="datetime" name="datetime">
                         <small class="datetime-format-hint" id="datetimeFormatHint" style="display: block; color: #666; font-size: 0.85em; margin-top: 4px;">Формат: дд.мм.гггг</small>
                     </div>
 
