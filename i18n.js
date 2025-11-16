@@ -200,6 +200,26 @@ function updateUI() {
     // Update options
     updateSelectOptions();
     
+    // Update datetime input lang attribute and format hint
+    const datetimeInput = document.getElementById('datetime');
+    const datetimeFormatHint = document.getElementById('datetimeFormatHint');
+    if (datetimeInput) {
+        const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+        // Update format hint
+        if (datetimeFormatHint) {
+            datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
+        }
+        // Force re-render of the input value to update format
+        if (datetimeInput.value) {
+            const currentValue = datetimeInput.value;
+            datetimeInput.value = '';
+            setTimeout(() => {
+                datetimeInput.value = currentValue;
+            }, 10);
+        }
+    }
+    
     // Re-render records if function exists
     if (typeof renderRecords === 'function') {
         renderRecords();

@@ -104,7 +104,8 @@
 
                     <div class="form-group">
                         <label for="datetime" data-i18n="datetimeLabel">Дата и час на изцеждане</label>
-                        <input type="datetime-local" id="datetime" name="datetime" required>
+                        <input type="datetime-local" id="datetime" name="datetime" lang="bg-BG" required>
+                        <small class="datetime-format-hint" id="datetimeFormatHint" style="display: block; color: #666; font-size: 0.85em; margin-top: 4px;">Формат: дд.мм.гггг</small>
                     </div>
 
                     <div class="form-group">
@@ -156,10 +157,10 @@
         </div>
     </div>
 
-    <script src="app_v2.js?v=11"></script>
+    <script src="app_v2.js?v=12"></script>
     <script>
         // Cache busting and force reload mechanism
-        const APP_VERSION = '11';
+        const APP_VERSION = '12';
         
         // Агресивно изчистване на кеша при зареждане
         (async function clearOldCache() {

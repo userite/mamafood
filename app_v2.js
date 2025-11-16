@@ -610,9 +610,19 @@ function openModalForAdd() {
     const modalTitle = document.getElementById('modalTitle');
     const recordForm = document.getElementById('recordForm');
     const datetimeInput = document.getElementById('datetime');
+    const datetimeFormatHint = document.getElementById('datetimeFormatHint');
     
     // Изчистване на формата
     recordForm.reset();
+    
+    // Обновяване на lang атрибута и format hint според текущия език
+    const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+    if (datetimeInput) {
+        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+    }
+    if (datetimeFormatHint) {
+        datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
+    }
     
     // Задаване на текущата дата и час (ЛОКАЛНО време)
     datetimeInput.value = getLocalDateTimeString();
@@ -631,6 +641,8 @@ function openModalForAdd() {
 function openModalForEdit(recordId) {
     const modal = document.getElementById('recordModal');
     const modalTitle = document.getElementById('modalTitle');
+    const datetimeInput = document.getElementById('datetime');
+    const datetimeFormatHint = document.getElementById('datetimeFormatHint');
     
     // Конвертиране на recordId към правилния тип (string или number)
     const record = records.find(r => String(r.id) === String(recordId) || r.id === recordId);
@@ -640,13 +652,22 @@ function openModalForEdit(recordId) {
         return;
     }
     
+    // Обновяване на lang атрибута и format hint според текущия език
+    const currentLang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+    if (datetimeInput) {
+        datetimeInput.setAttribute('lang', currentLang === 'en' ? 'en-US' : 'bg-BG');
+    }
+    if (datetimeFormatHint) {
+        datetimeFormatHint.textContent = currentLang === 'en' ? 'Format: mm/dd/yyyy' : 'Формат: дд.мм.гггг';
+    }
+    
     // Попълване на формата с данните от записа
     document.getElementById('amount').value = Math.round(record.amount || 0);
     document.getElementById('situation').value = record.situation;
     
     // Конвертиране на datetime към локално време за datetime-local input
     // Използваме функцията за конвертиране, която правилно обработва timezone-а
-    document.getElementById('datetime').value = convertToLocalDateTimeString(record.datetime);
+    datetimeInput.value = convertToLocalDateTimeString(record.datetime);
     
     document.getElementById('notes').value = record.notes || '';
     document.getElementById('recordId').value = record.id;
