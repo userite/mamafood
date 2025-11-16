@@ -27,11 +27,6 @@ const PORT = process.env.PORT || 3000;
 
 // Build database config - supports DATABASE_URL or individual variables
 // Render.com provides DATABASE_URL automatically
-// 
-// Connection String Priority:
-// 1. DATABASE_URL (for production on Render.com or external access)
-// 2. DATABASE_URL_INTERNAL (for internal access when both services are on Render.com)
-// 3. Individual variables (POSTGRES_HOST, POSTGRES_USER, etc.)
 
 // Determine which connection string to use
 let connectionString = process.env.DATABASE_URL;
@@ -47,57 +42,15 @@ const isRenderEnvironment = process.env.RENDER === 'true' ||
 // Debug: Log what we have
 console.log('[INFO] Database URL Detection:', {
     hasDATABASE_URL: !!process.env.DATABASE_URL,
-    hasDATABASE_URL_INTERNAL: !!process.env.DATABASE_URL_INTERNAL,
     isRenderEnvironment: isRenderEnvironment,
     RENDER: process.env.RENDER,
     RENDER_SERVICE_NAME: process.env.RENDER_SERVICE_NAME,
     RENDER_SERVICE_ID: process.env.RENDER_SERVICE_ID,
-    DATABASE_URL_preview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 50) + '...' : 'N/A',
-    DATABASE_URL_INTERNAL_preview: process.env.DATABASE_URL_INTERNAL ? process.env.DATABASE_URL_INTERNAL.substring(0, 50) + '...' : 'N/A'
+    DATABASE_URL_preview: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 50) + '...' : 'N/A'
 });
 
-// Check if Internal URL contains ".internal" (definitive sign it's an internal URL)
-const isInternalURL = process.env.DATABASE_URL_INTERNAL && 
-                      (process.env.DATABASE_URL_INTERNAL.includes('.internal') || 
-                       process.env.DATABASE_URL_INTERNAL.includes('internal:'));
-
-// Priority 1: If we have Internal URL (with .internal) and we're on Render.com, use it (fastest, no SSL)
-if (isInternalURL && isRenderEnvironment) {
-    connectionString = process.env.DATABASE_URL_INTERNAL;
-    useSSL = false;
-    console.log('[INFO] ✅ Използвам Internal URL (Render.com internal network - най-бързо)');
-} 
-// Priority 2: If we have Internal URL (with .internal) but not sure if on Render.com, still try it
-// (If it fails, we'll see an error and can debug)
-else if (isInternalURL) {
-    connectionString = process.env.DATABASE_URL_INTERNAL;
-    useSSL = false;
-    console.log('[INFO] ✅ Използвам Internal URL (съдържа .internal - опитвам се да го използвам)');
-    if (!isRenderEnvironment) {
-        console.warn('[INFO] ⚠️ Не сме сигурни че сме на Render.com, но опитвам Internal URL');
-    }
-}
-// Priority 3: If we have DATABASE_URL_INTERNAL but it's not a real internal URL, check environment
-else if (process.env.DATABASE_URL_INTERNAL && !process.env.DATABASE_URL) {
-    // No External URL, use Internal even if not sure
-    connectionString = process.env.DATABASE_URL_INTERNAL;
-    useSSL = false;
-    console.log('[INFO] ✅ Използвам DATABASE_URL_INTERNAL (няма External URL)');
-}
-// Priority 4: If we have both but Internal is not a real internal URL and we're not on Render.com
-else if (process.env.DATABASE_URL_INTERNAL && !isRenderEnvironment) {
-    console.warn('[INFO] ⚠️ DATABASE_URL_INTERNAL е зададен, но не изглежда като Internal URL и не сме на Render.com - използвам External URL');
-    connectionString = process.env.DATABASE_URL;
-    const isRenderPostgres = connectionString && (connectionString.includes('render.com') || 
-                                                   connectionString.includes('onrender.com'));
-    const isCloudProvider = connectionString && (connectionString.includes('amazonaws.com') ||
-                                                   connectionString.includes('azure.com') ||
-                                                   connectionString.includes('cloud.google.com'));
-    useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
-    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider });
-}
-// Priority 5: Use External URL (fallback)
-else if (process.env.DATABASE_URL) {
+// Use DATABASE_URL if available
+if (process.env.DATABASE_URL) {
     connectionString = process.env.DATABASE_URL;
     
     // Extract hostname from URL for better detection
@@ -125,21 +78,24 @@ else if (process.env.DATABASE_URL) {
                             hostname.includes('cloud.google.com');
     
     // For Render.com external connections, SSL is usually required
-    useSSL = isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true';
+    // Internal URLs (with .internal) don't need SSL
+    const isInternalURL = hostname.includes('.internal') || hostname.includes('internal:');
+    useSSL = !isInternalURL && (isRenderPostgres || isCloudProvider || process.env.DATABASE_URL_SSL === 'true');
     
-    console.log('[INFO] External URL Analysis:', {
+    console.log('[INFO] Database URL Analysis:', {
         hostname: hostname || 'N/A',
         isRenderPostgres,
         isCloudProvider,
+        isInternalURL,
         useSSL,
         isRenderEnvironment
     });
     
-    if (isRenderPostgres && !useSSL) {
+    if (isRenderPostgres && !isInternalURL && !useSSL) {
         console.warn('[INFO] ⚠️ Render.com external URL без SSL - може да има проблеми с връзката!');
     }
     
-    console.log('[INFO] Използвам External URL', { useSSL, isRenderPostgres, isCloudProvider, isRenderEnvironment });
+    console.log('[INFO] Използвам DATABASE_URL', { useSSL, isRenderPostgres, isCloudProvider, isInternalURL, isRenderEnvironment });
 }
 
 const dbConfig = {
@@ -158,14 +114,6 @@ console.log('\n📊 Database Configuration:');
 if (connectionString) {
     const urlPreview = connectionString.substring(0, 50) + '...';
     console.log(`   ✅ Използвам: ${urlPreview}`);
-    if (process.env.DATABASE_URL_INTERNAL && process.env.DATABASE_URL) {
-        console.log(`   📌 Internal URL: ${process.env.DATABASE_URL_INTERNAL.substring(0, 30)}...`);
-        console.log(`   📌 External URL: ${process.env.DATABASE_URL.substring(0, 30)}...`);
-    } else if (process.env.DATABASE_URL_INTERNAL) {
-        console.log(`   📌 Internal URL: ${process.env.DATABASE_URL_INTERNAL.substring(0, 30)}...`);
-    } else if (process.env.DATABASE_URL) {
-        console.log(`   📌 External URL: ${process.env.DATABASE_URL.substring(0, 30)}...`);
-    }
     console.log(`   🔒 SSL: ${useSSL ? 'Да' : 'Не'}`);
 } else {
     console.log('   ⚠️  DATABASE_URL не е зададен');
@@ -392,8 +340,6 @@ app.get('/api/records/:child_code', async (req, res) => {
         console.log(`[API] Database connection info:`, {
             hasConnectionString: !!connectionString,
             connectionStringPreview: connectionString ? connectionString.substring(0, 50) + '...' : 'N/A',
-            isInternal: connectionString === process.env.DATABASE_URL_INTERNAL,
-            isExternal: connectionString === process.env.DATABASE_URL,
             useSSL: useSSL,
             poolExists: !!pool
         });
