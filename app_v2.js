@@ -187,11 +187,14 @@ async function loadRecords() {
     isLoadingRecords = true;
     lastLoadTime = now;
     
+    // Изчистване на старите данни преди зареждане на нови
+    const upperChildCode = (childCode || '').toUpperCase();
+    records = [];
+    
     let response = null;
     let loadedFromAPI = false;
     try {
         // Опит за зареждане от API (уверяваме се, че кодът е в главни букви)
-        const upperChildCode = (childCode || '').toUpperCase();
         console.log(`[loadRecords] Зареждане на записи за код: ${upperChildCode}`);
         console.log(`[loadRecords] API_BASE: ${API_BASE}`);
         console.log(`[loadRecords] Window location: ${window.location.href}`);
@@ -377,8 +380,8 @@ function saveRecords() {
     // Запазваме всички записи
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
     
-    // Актуализиране на интерфейса
-    renderRecords();
+    // НЕ извикваме renderRecords() тук, защото това може да причини цикъл
+    // renderRecords() трябва да се извиква само от loadRecords() или след промяна на данните
     updateStats();
     
     // Известяване на други компоненти за промяната
@@ -1174,11 +1177,29 @@ function renderRecords() {
             expiry: new Date(new Date(r.datetime).getTime() + (situations.find(s => s.id === r.situation)?.validityHours || 0) * 60 * 60 * 1000)
         })));
         
-        // Актуализиране на масива records - запазваме само записите за текущия код
-        // records вече е филтриран по текущия код, така че просто актуализираме с активните и изтеклите
-        records = [...activeRecords, ...expiredRecords];
+        // Актуализиране на масива records - запазваме ВСИЧКИ филтрирани записи (включително пропуснатите)
+        // За да не загубим данни, запазваме всички филтрирани записи, не само активните и изтеклите
+        records = [...filteredRecords];
         // Запазваме всички записи (включително за други кодове) в localStorage
-        saveRecords();
+        // НЕ извикваме saveRecords() тук, защото това ще извика renderRecords() отново и ще причини цикъл
+        const allStoredRecords = localStorage.getItem(STORAGE_KEY);
+        let allRecords = [];
+        if (allStoredRecords) {
+            try {
+                allRecords = JSON.parse(allStoredRecords);
+                // Премахваме старите записи за текущия код
+                allRecords = allRecords.filter(r => {
+                    const recordCode = (r.child_code || '').toUpperCase();
+                    return recordCode !== upperChildCode;
+                });
+            } catch (e) {
+                console.warn('[renderRecords] Грешка при парсване на старите записи:', e);
+                allRecords = [];
+            }
+        }
+        // Добавяме текущите записи
+        allRecords = [...allRecords, ...records];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
         
         // Сортиране на активните записи по дата на изтичане (най-близките до изтичане първи)
         const sortedActiveRecords = [...activeRecords].sort((a, b) => {
