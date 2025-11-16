@@ -316,36 +316,63 @@ async function loadRecords() {
             isLoadingRecords = false;
             return;
         } else {
-            console.warn(`[loadRecords] API върна статус ${response.status}, използвам localStorage`);
-        }
-    } catch (error) {
-        console.warn('[loadRecords] Грешка при зареждане от API, използвам localStorage:', error.message);
-    } finally {
-        // Fallback: зареждане от localStorage (само ако не сме заредили от API)
-        if (!loadedFromAPI) {
-            const storedRecords = localStorage.getItem(STORAGE_KEY);
-            if (storedRecords) {
+            // ВРЕМЕННО: Не използваме localStorage, показваме грешката
+            console.error(`[loadRecords] ❌ API върна статус ${response.status}`);
+            try {
+                const errorText = await response.text();
+                console.error(`[loadRecords] Response body:`, errorText);
                 try {
-                    const allRecords = JSON.parse(storedRecords);
-                    // Филтриране по текущия child_code
-                    const upperChildCode = (childCode || '').toUpperCase();
-                    records = allRecords.filter(r => {
-                        const recordCode = (r.child_code || '').toUpperCase();
-                        return recordCode === upperChildCode;
-                    });
-                    console.log(`[loadRecords] Заредени ${records.length} записа от localStorage за код ${upperChildCode} (от общо ${allRecords.length})`);
+                    const errorJson = JSON.parse(errorText);
+                    console.error(`[loadRecords] Error details:`, errorJson);
                 } catch (e) {
-                    console.warn('[loadRecords] Грешка при парсване на localStorage:', e);
-                    records = [];
+                    console.error(`[loadRecords] Error text (не е JSON):`, errorText);
                 }
-            } else {
-                records = [];
+            } catch (e) {
+                console.error(`[loadRecords] Не можах да прочета response body:`, e);
             }
-            
+            // Не зареждаме от localStorage - показваме грешката
+            records = [];
             renderRecords();
             updateStats();
-            checkExpiringPortions();
+            isLoadingRecords = false;
+            return;
         }
+    } catch (error) {
+        // ВРЕМЕННО: Не използваме localStorage, показваме грешката
+        console.error('[loadRecords] ❌ Грешка при зареждане от API:', error);
+        console.error('[loadRecords] Error message:', error.message);
+        console.error('[loadRecords] Error stack:', error.stack);
+        // Не зареждаме от localStorage - показваме грешката
+        records = [];
+        renderRecords();
+        updateStats();
+        isLoadingRecords = false;
+        return;
+    } finally {
+        // ВРЕМЕННО ИЗКЛЮЧЕНО: localStorage fallback
+        // if (!loadedFromAPI) {
+        //     const storedRecords = localStorage.getItem(STORAGE_KEY);
+        //     if (storedRecords) {
+        //         try {
+        //             const allRecords = JSON.parse(storedRecords);
+        //             const upperChildCode = (childCode || '').toUpperCase();
+        //             records = allRecords.filter(r => {
+        //                 const recordCode = (r.child_code || '').toUpperCase();
+        //                 return recordCode === upperChildCode;
+        //             });
+        //             console.log(`[loadRecords] Заредени ${records.length} записа от localStorage за код ${upperChildCode} (от общо ${allRecords.length})`);
+        //         } catch (e) {
+        //             console.warn('[loadRecords] Грешка при парсване на localStorage:', e);
+        //             records = [];
+        //         }
+        //     } else {
+        //         records = [];
+        //     }
+        //     
+        //     renderRecords();
+        //     updateStats();
+        //     checkExpiringPortions();
+        // }
         
         isLoadingRecords = false;
     }
