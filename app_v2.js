@@ -211,10 +211,12 @@ async function loadRecords() {
             method: 'GET',
             headers: {
                 'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
+                'Pragma': 'no-cache',
+                'Accept': 'application/json'
             }
         });
         console.log(`[loadRecords] Response status: ${response.status}`);
+        console.log(`[loadRecords] Response headers:`, Object.fromEntries(response.headers.entries()));
         
         if (response.ok) {
             const apiRecords = await response.json();
@@ -538,7 +540,9 @@ function convertToLocalDateTimeString(isoString) {
     return getLocalDateTimeString(date);
 }
 
-// Функция за форматиране на дата във формат DD/MM/YYYY (фиксиран формат независимо от езика)
+// Функция за форматиране на дата според езика
+// Български: dd.mm.yyyy
+// Английски: mm/dd/yyyy
 function formatDateDDMMYYYY(date) {
     if (!date) return '';
     
@@ -571,7 +575,17 @@ function formatDateDDMMYYYY(date) {
     const month = useUTC ? String(d.getUTCMonth() + 1).padStart(2, '0') : String(d.getMonth() + 1).padStart(2, '0');
     const year = useUTC ? d.getUTCFullYear() : d.getFullYear();
     
-    return `${day}/${month}/${year}`;
+    // Определяне на текущия език
+    const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+    
+    // Форматиране според езика
+    if (lang === 'en') {
+        // Английски: mm/dd/yyyy
+        return `${month}/${day}/${year}`;
+    } else {
+        // Български: dd.mm.yyyy
+        return `${day}.${month}.${year}`;
+    }
 }
 
 // Функция за форматиране на час във формат HH:MM (24-часов формат)
@@ -1530,7 +1544,7 @@ function createRecordCard(record) {
     const isFormula = record.situation && record.situation.startsWith('formula');
     const portionType = isFormula ? (typeof t !== 'undefined' ? t('prepared') : 'Приготвена') : (typeof t !== 'undefined' ? t('pumped') : 'Изцедена');
     
-    // Форматиране на дата и час - фиксиран формат DD/MM/YYYY независимо от езика
+    // Форматиране на дата и час - формат зависи от езика (bg: dd.mm.yyyy, en: mm/dd/yyyy)
     const recordDate = new Date(record.datetime);
     
     // Debug logging за датата
@@ -1544,7 +1558,7 @@ function createRecordCard(record) {
         });
     }
     
-    // Форматиране на дата във формат DD/MM/YYYY
+    // Форматиране на дата според езика (bg: dd.mm.yyyy, en: mm/dd/yyyy)
     // Предаваме оригиналния ISO string за правилно откриване на timezone
     const formattedDate = formatDateDDMMYYYY(record.datetime);
     
@@ -1577,7 +1591,7 @@ function createRecordCard(record) {
         }
     }
     
-    // Форматиране на срока на годност - фиксиран формат DD/MM/YYYY HH:MM
+    // Форматиране на срока на годност - формат зависи от езика (bg: dd.mm.yyyy, en: mm/dd/yyyy)
     // Конвертираме към ISO string за правилно форматиране
     const expiryDateISO = expiryDate.toISOString();
     const expiryDateFormatted = formatDateDDMMYYYY(expiryDateISO);
