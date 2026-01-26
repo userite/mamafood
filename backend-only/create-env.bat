@@ -39,7 +39,6 @@ echo ========================================
 echo.
 
 set /p db_url="Въведи DATABASE_URL (External - за локално тестване): "
-set /p db_url_internal="Въведи DATABASE_URL_INTERNAL (Internal - опционално, Enter за пропускане): "
 
 if "%db_url%"=="" (
     echo.
@@ -50,7 +49,6 @@ if "%db_url%"=="" (
         echo DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mamafood
         echo.
         echo # Internal URL - използва се когато backend Е на Render.com ^(по-бърз, без SSL^)
-        echo # DATABASE_URL_INTERNAL=postgresql://username:password@internal-host:port/database
         echo.
         echo # Port ^(опционално, по подразбиране е 3000^)
         echo PORT=3000
@@ -70,7 +68,6 @@ if "%db_url%"=="" (
         if not "%db_url_internal%"=="" (
             echo.
             echo # Internal URL - използва се когато backend Е на Render.com ^(по-бърз, без SSL^)
-            echo DATABASE_URL_INTERNAL=%db_url_internal%
         )
         echo.
         echo # Port ^(опционално, по подразбиране е 3000^)

@@ -45,12 +45,12 @@ echo   - service-worker.js
 echo.
 
 REM Потвърждение
-set /p CONFIRM="Продължи с качването? (Y/N): "
-if /i not "%CONFIRM%"=="Y" (
-    echo [INFO] Качването е отменено.
-    pause
-    exit /b 0
-)
+rem set /p CONFIRM="Продължи с качването? (Y/N): "
+rem if /i not "%CONFIRM%"=="Y" (
+rem     echo [INFO] Качването е отменено.
+rem     pause
+rem     exit /b 0
+rem )
 
 echo.
 echo [INFO] Качване на файловете чрез curl...
@@ -58,43 +58,43 @@ echo.
 
 REM Качване на файловете чрез curl FTP
 echo [INFO] Качване на index.html...
-curl -T "index.html" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/index.html" --ftp-create-dirs
+curl.exe -T "index.html" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/index.html" --ftp-create-dirs
 if %errorlevel% neq 0 (
     echo [WARNING] Неуспешно качване на index.html, опитвам алтернативна директория...
-    curl -T "index.html" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/index.html" --ftp-create-dirs
+    curl.exe -T "index.html" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/index.html" --ftp-create-dirs
 )
 
 echo [INFO] Качване на app_v2.js...
-curl -T "app_v2.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/app_v2.js" --ftp-create-dirs
+curl.exe -T "app_v2.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/app_v2.js" --ftp-create-dirs
 if %errorlevel% neq 0 (
-    curl -T "app_v2.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/app_v2.js" --ftp-create-dirs
+    curl.exe -T "app_v2.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/app_v2.js" --ftp-create-dirs
 )
 
 echo [INFO] Качване на i18n.js...
-curl -T "i18n.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/i18n.js" --ftp-create-dirs
+curl.exe -T "i18n.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/i18n.js" --ftp-create-dirs
 if %errorlevel% neq 0 (
-    curl -T "i18n.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/i18n.js" --ftp-create-dirs
+    curl.exe -T "i18n.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/i18n.js" --ftp-create-dirs
 )
 
 echo [INFO] Качване на styles.css...
-curl -T "styles.css" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/styles.css" --ftp-create-dirs
+curl.exe -T "styles.css" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/styles.css" --ftp-create-dirs
 if %errorlevel% neq 0 (
-    curl -T "styles.css" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/styles.css" --ftp-create-dirs
+    curl.exe -T "styles.css" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/styles.css" --ftp-create-dirs
 )
 
 if exist "manifest.json" (
     echo [INFO] Качване на manifest.json...
-    curl -T "manifest.json" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/manifest.json" --ftp-create-dirs
+    curl.exe -T "manifest.json" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/manifest.json" --ftp-create-dirs
     if %errorlevel% neq 0 (
-        curl -T "manifest.json" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/manifest.json" --ftp-create-dirs
+        curl.exe -T "manifest.json" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/manifest.json" --ftp-create-dirs
     )
 )
 
 if exist "service-worker.js" (
     echo [INFO] Качване на service-worker.js...
-    curl -T "service-worker.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/service-worker.js" --ftp-create-dirs
+    curl.exe -T "service-worker.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/service-worker.js" --ftp-create-dirs
     if %errorlevel% neq 0 (
-        curl -T "service-worker.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/service-worker.js" --ftp-create-dirs
+        curl.exe -T "service-worker.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/service-worker.js" --ftp-create-dirs
     )
 )
 
@@ -111,5 +111,5 @@ echo [INFO] Уверете се, че app_v2.js е конфигуриран с �
 echo ========================================
 echo.
 
-pause
+rem pause
 

@@ -13,9 +13,157 @@
     <link rel="stylesheet" href="styles.css?v=2">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🍼</text></svg>">
     <script src="i18n.js?v=2"></script>
+    <script src="uik.js?v=1"></script>
+    <script src="uik-ui.js?v=1"></script>
+    <script src="url-manager.js?v=1"></script>
 </head>
 <body>
-    <div class="app-container">
+    <!-- UIK System Screens -->
+    <div id="uik-container" style="display: none;">
+        <!-- Registration Screen -->
+        <div id="uik-registration-screen" class="uik-screen" style="display: none;">
+            <div class="uik-content">
+                <h1>📝 UIK регистрация</h1>
+                <form id="uik-registration-form" class="uik-form">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="uik-attach-mode"> Прикачване към съществуващ акаунт
+                        </label>
+                    </div>
+                    
+                    <!-- ATTACH режим - само личен ID и PIN -->
+                    <div id="uik-attach-fields" style="display: none;">
+                        <div class="form-group" id="uik-attach-personal-id-group">
+                            <label for="uik-attach-personal-id">Личен ID (ЕГН/БУЛСТАТ) *</label>
+                            <input type="text" id="uik-attach-personal-id" placeholder="Въведете личен ID от регистрацията">
+                            <small>Използвайте личния ID, който сте задали при регистрацията</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-attach-pin">PIN код от регистрацията *</label>
+                            <input type="password" id="uik-attach-pin" placeholder="Въведете същия PIN код като при регистрацията" minlength="4">
+                            <small>Въведете същия PIN код, който сте използвали при регистрацията</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Нормална регистрация - всички полета -->
+                    <div id="uik-registration-fields">
+                        <div class="form-group">
+                            <label for="uik-name">Име *</label>
+                            <input type="text" id="uik-name" required placeholder="Въведете име">
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-personal-id">Личен ID (ЕГН/БУЛСТАТ) *</label>
+                            <input type="text" id="uik-personal-id" required placeholder="Въведете личен ID">
+                            <small>Необходим за прикачване на нови устройства</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-address">Адрес</label>
+                            <input type="text" id="uik-address" placeholder="Въведете адрес (по избор)">
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-phone">Телефон</label>
+                            <input type="tel" id="uik-phone" placeholder="Въведете телефон (по избор)">
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-email">E-mail</label>
+                            <input type="email" id="uik-email" placeholder="Въведете e-mail (по избор)">
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-pin">PIN код *</label>
+                            <input type="password" id="uik-pin" required placeholder="Въведете PIN код" minlength="4">
+                            <small>Минимум 4 символа</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="uik-pin-confirm">Потвърдете PIN код *</label>
+                            <input type="password" id="uik-pin-confirm" required placeholder="Повторете PIN кода" minlength="4">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Регистрирай</button>
+                    </div>
+                    <div id="uik-registration-error" class="uik-error" style="display: none;"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="uik-login-screen" class="uik-screen" style="display: none;">
+            <div class="uik-content">
+                <h1>🔐 Вход</h1>
+                <p>Въведете PIN кода за достъп до приложението</p>
+                <form id="uik-login-form" class="uik-form">
+                    <div class="form-group">
+                        <label for="uik-login-pin">PIN код</label>
+                        <input type="password" id="uik-login-pin" required placeholder="Въведете PIN код" autofocus>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Вход</button>
+                        <button type="button" class="btn btn-secondary" onclick="showUIKReset()">RESET</button>
+                    </div>
+                    <div id="uik-login-error" class="uik-error" style="display: none;"></div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Success Screen -->
+        <div id="uik-success-screen" class="uik-screen" style="display: none;">
+            <div class="uik-content">
+                <h1>✅ Успешно</h1>
+                <div id="uik-success-info">
+                    <p>Добре дошли, <strong id="uik-success-name"></strong>!</p>
+                    <p>Проверката е успешна.</p>
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: #f5f5f5; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                        <p style="margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-light);">УИК (Универсален Идентификационен Ключ):</p>
+                        <p style="margin: 0; font-family: monospace; font-size: 0.85rem; word-break: break-all; color: var(--primary-color); font-weight: 600;" id="uik-success-uik"></p>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" onclick="startApp()">СТАРТ</button>
+                    <button type="button" class="btn btn-secondary" onclick="showURLManager()">🌐 URL Меню</button>
+                    <button type="button" class="btn btn-secondary" onclick="showUIKReset()">RESET</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- URL Manager Screen -->
+        <div id="uik-url-manager-screen" class="uik-screen" style="display: none;">
+            <div class="uik-content" style="max-width: 600px;">
+                <h1>🌐 URL Меню</h1>
+                <p>Управление на бързи връзки към приложения и сайтове</p>
+                
+                <!-- Списък с URL-и -->
+                <div id="url-list-container" style="margin: 1.5rem 0;">
+                    <div id="url-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <!-- URL бутоните ще се добавят тук динамично -->
+                    </div>
+                    <p id="url-empty-message" style="text-align: center; color: var(--text-light); padding: 2rem 0;">
+                        Няма добавени URL адреси. Добавете първия от долу.
+                    </p>
+                </div>
+
+                <!-- Форма за добавяне на нов URL -->
+                <form id="url-add-form" class="uik-form" style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #e0e0e0;">
+                    <div class="form-group">
+                        <label for="url-name">Име на приложението/сайта *</label>
+                        <input type="text" id="url-name" required placeholder="Напр. Billa, Shell, и т.н.">
+                    </div>
+                    <div class="form-group">
+                        <label for="url-address">URL адрес *</label>
+                        <input type="url" id="url-address" required placeholder="https://billa.bg">
+                        <small>Въведете пълния URL адрес (с http:// или https://)</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">➕ Добави</button>
+                        <button type="button" class="btn btn-secondary" onclick="hideURLManager()">Назад</button>
+                    </div>
+                </form>
+                
+                <div id="url-manager-error" class="uik-error" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="main-app-container" style="display: none;">
         <!-- Header -->
         <header class="header">
             <div class="header-left">

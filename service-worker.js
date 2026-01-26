@@ -1,6 +1,6 @@
 // Service Worker for PWA - Universal compatibility
-const CACHE_NAME = 'mamafood-v10';
-const VERSION = '10.0.0';
+const CACHE_NAME = 'mamafood-v12';
+const VERSION = '12.0.0';
 
 // Install event - cache files
 self.addEventListener('install', (event) => {
@@ -13,9 +13,9 @@ self.addEventListener('install', (event) => {
                 // Try to cache, but don't fail if files are not found
                 return cache.addAll([
                     './',
-                    './index.html?v=10',
+                    './index.html?v=12',
                     './styles.css?v=2',
-                    './app_v2.js?v=10',
+                    './app_v2.js?v=12',
                     './i18n.js?v=2',
                     './manifest.json?v=2'
                 ]).catch(err => {

@@ -1,7 +1,19 @@
 // МАМАФООД - Основен файл с функционалности
 document.addEventListener('DOMContentLoaded', function() {
-    // Инициализиране на приложението
-    initApp();
+    // Проверка за UIK система преди стартиране на приложението
+    // Изчакваме малко за да се заредят всички скриптове
+    setTimeout(function() {
+        if (typeof initUIKSystem === 'function') {
+            // UIK системата е заредена, инициализираме я
+            // Тя ще покаже registration или login screen според дали има запазен UIK
+            // Основното приложение ще се стартира след успешен вход чрез startApp()
+            initUIKSystem();
+        } else {
+            // UIK системата не е заредена, стартираме нормално приложението
+            window.appInitialized = true;
+            initApp();
+        }
+    }, 100);
 });
 
 // Глобални променливи
@@ -98,6 +110,15 @@ function initApp() {
         localStorage.setItem('mamafood_child_code', childCode);
     }
     
+    // СИНХРОНИЗИРАНЕ НА ЕЗИКА ПРЕДИ ВСИЧКО ДРУГО
+    // Това гарантира, че currentLanguage в i18n.js е правилно синхронизиран с localStorage
+    const storedLang = localStorage.getItem('mamafood_language') || 'bg';
+    if (typeof currentLanguage !== 'undefined') {
+        currentLanguage = storedLang;
+    }
+    // Извикваме getCurrentLanguage() за да се синхронизира и той
+    getCurrentLanguage();
+    
     // Актуализиране на tooltip-а и display-а
     updateChildCodeTooltip();
     
@@ -105,11 +126,11 @@ function initApp() {
     loadSituations();
     
     // Попълване на dropdown менюто за ситуации (от i18n.js)
-    if (typeof updateSelectOptions === 'function') {
-        updateSelectOptions();
-    } else if (typeof updateUI === 'function') {
-        // Ако updateSelectOptions не е достъпна, опитай updateUI
+    // Извикваме updateUI() за да се актуализира всичко с правилния език
+    if (typeof updateUI === 'function') {
         updateUI();
+    } else if (typeof updateSelectOptions === 'function') {
+        updateSelectOptions();
     }
     
     // Зареждане на записите (асинхронно)
@@ -310,6 +331,14 @@ async function loadRecords() {
             // Добавяме новите записи за текущия код
             allRecords = [...allRecords, ...records];
             localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
+            
+            // Синхронизиране на currentLanguage преди рендиране
+            if (typeof currentLanguage !== 'undefined') {
+                const storedLang = localStorage.getItem('mamafood_language') || 'bg';
+                if (currentLanguage !== storedLang) {
+                    currentLanguage = storedLang;
+                }
+            }
             
             console.log(`[loadRecords] Извикване на renderRecords() с ${records.length} записа`);
             renderRecords();
@@ -540,6 +569,29 @@ function convertToLocalDateTimeString(isoString) {
     return getLocalDateTimeString(date);
 }
 
+// Централизирана функция за определяне на текущия език
+function getCurrentLanguage() {
+    let lang = 'bg'; // По подразбиране български
+    try {
+        // Първо проверяваме localStorage за актуална стойност
+        const storedLang = localStorage.getItem('mamafood_language');
+        if (storedLang) {
+            lang = storedLang;
+            // Синхронизираме currentLanguage в i18n.js ако е достъпен
+            if (typeof currentLanguage !== 'undefined') {
+                currentLanguage = storedLang;
+            }
+        } else if (typeof currentLanguage !== 'undefined' && currentLanguage) {
+            // Fallback към currentLanguage от i18n.js
+            lang = currentLanguage;
+        }
+    } catch (e) {
+        console.warn('[getCurrentLanguage] Грешка при четене на език:', e);
+        lang = 'bg'; // Fallback към български
+    }
+    return lang;
+}
+
 // Функция за форматиране на дата според езика
 // Български: dd.mm.yyyy
 // Английски: mm/dd/yyyy
@@ -576,14 +628,14 @@ function formatDateDDMMYYYY(date) {
     const year = useUTC ? d.getUTCFullYear() : d.getFullYear();
     
     // Определяне на текущия език
-    const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
+    const lang = getCurrentLanguage();
     
     // Форматиране според езика
     if (lang === 'en') {
         // Английски: mm/dd/yyyy
         return `${month}/${day}/${year}`;
     } else {
-        // Български: dd.mm.yyyy
+        // Български: dd.mm.yyyy (по подразбиране)
         return `${day}.${month}.${year}`;
     }
 }
@@ -726,6 +778,8 @@ const getAPIBase = () => {
 };
 
 const API_BASE = getAPIBase();
+// Експорт за глобална употреба (за uik.js и други модули)
+window.API_BASE = API_BASE;
 console.log(`[API Config] API_BASE е зададен на: ${API_BASE}`);
 console.log(`[API Config] Window hostname: ${window.location.hostname}`);
 console.log(`[API Config] Window origin: ${window.location.origin}`);
@@ -1070,6 +1124,15 @@ function renderRecords() {
     renderCallCount++;
     console.log(`[renderRecords] Извикване #${renderCallCount}`);
     
+    // СИНХРОНИЗИРАНЕ НА ЕЗИКА ПРЕДИ РЕНДИРАНЕ
+    // Това гарантира, че винаги използваме правилния език от localStorage
+    const storedLang = localStorage.getItem('mamafood_language') || 'bg';
+    if (typeof currentLanguage !== 'undefined') {
+        currentLanguage = storedLang;
+    }
+    // Извикваме getCurrentLanguage() за да се синхронизира и той
+    getCurrentLanguage();
+    
     // Предотвратяване на паралелно рендиране
     if (isRendering) {
         console.warn('[renderRecords] Вече се рендира, пропускам...');
@@ -1202,9 +1265,14 @@ function renderRecords() {
                 
                 // Проверка дали е изтекъл
                 if (now > expiryDate) {
-                    // Показваме всички изтекли записи в секцията "Изтекли порции"
-                    // (дори тези по-стари от 2 дена - те ще се изтрият автоматично от cleanupExpiredRecords)
-                    expiredRecords.push(record);
+                    // Показваме само изтекли записи, които са изтекли преди по-малко от 2 дена
+                    // Записите по-стари от 2 дена ще се изтрият от cleanupExpiredRecords
+                    const twoDaysAfterExpiry = new Date(expiryDate.getTime() + 2 * 24 * 60 * 60 * 1000);
+                    if (now <= twoDaysAfterExpiry) {
+                        // Показваме само ако не са изтекли преди повече от 2 дена
+                        expiredRecords.push(record);
+                    }
+                    // Ако са по-стари от 2 дена, не ги показваме (ще се изтрият от cleanupExpiredRecords)
                 } else {
                     activeRecords.push(record);
                 }
@@ -1529,9 +1597,11 @@ function getSituationIcon(situationId) {
 
 // Функция за получаване на име на ситуация от translations
 function getSituationName(situationId) {
+    // Определяне на текущия език
+    const lang = getCurrentLanguage();
+    
     // Опитваме се да вземем от translations (от i18n.js)
     if (typeof translations !== 'undefined') {
-        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
         if (translations[lang] && translations[lang].conditions && translations[lang].conditions[situationId]) {
             return translations[lang].conditions[situationId].name;
         }
@@ -1543,9 +1613,11 @@ function getSituationName(situationId) {
 
 // Функция за получаване на температура на ситуация от translations
 function getSituationTemp(situationId) {
+    // Определяне на текущия език
+    const lang = getCurrentLanguage();
+    
     // Опитваме се да вземем от translations (от i18n.js)
     if (typeof translations !== 'undefined') {
-        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
         if (translations[lang] && translations[lang].conditions && translations[lang].conditions[situationId]) {
             return translations[lang].conditions[situationId].temp;
         }
@@ -1557,9 +1629,11 @@ function getSituationTemp(situationId) {
 
 // Функция за получаване на duration на ситуация от translations
 function getSituationDuration(situationId) {
+    // Определяне на текущия език
+    const lang = getCurrentLanguage();
+    
     // Опитваме се да вземем от translations (от i18n.js)
     if (typeof translations !== 'undefined') {
-        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : (localStorage.getItem('mamafood_language') || 'bg');
         if (translations[lang] && translations[lang].conditions && translations[lang].conditions[situationId]) {
             return translations[lang].conditions[situationId].duration;
         }
@@ -1591,8 +1665,16 @@ function createRecordCard(record) {
     const situationDuration = getSituationDuration(record.situation);
     
     // Определяне на вида (изцедена/приготвена) според ситуацията
+    // Определяне на текущия език за правилна локализация
+    const currentLang = getCurrentLanguage();
+    
     const isFormula = record.situation && record.situation.startsWith('formula');
-    const portionType = isFormula ? (typeof t !== 'undefined' ? t('prepared') : 'Приготвена') : (typeof t !== 'undefined' ? t('pumped') : 'Изцедена');
+    let portionType;
+    if (typeof t !== 'undefined' && typeof translations !== 'undefined' && translations[currentLang]) {
+        portionType = isFormula ? translations[currentLang].prepared : translations[currentLang].pumped;
+    } else {
+        portionType = isFormula ? 'Приготвена' : 'Изцедена';
+    }
     
     // Форматиране на дата и час - формат зависи от езика (bg: dd.mm.yyyy, en: mm/dd/yyyy)
     const recordDate = new Date(record.datetime);
@@ -1624,8 +1706,13 @@ function createRecordCard(record) {
     let status = '';
     let statusClass = '';
     
+    // Определяне на статуса с правилна локализация
     if (now > expiryDate) {
-        status = typeof t !== 'undefined' ? t('statusExpired') : 'Изтекла';
+        if (typeof translations !== 'undefined' && translations[currentLang]) {
+            status = translations[currentLang].statusExpired || 'Изтекла';
+        } else {
+            status = 'Изтекла';
+        }
         statusClass = 'status-expired';
     } else {
         // Изчисляване на оставащото време
@@ -1633,10 +1720,18 @@ function createRecordCard(record) {
         const remainingHours = Math.floor(remainingTime / (1000 * 60 * 60));
         
         if (remainingHours < 2) {
-            status = typeof t !== 'undefined' ? t('statusWarning') : 'Изтича скоро!';
+            if (typeof translations !== 'undefined' && translations[currentLang]) {
+                status = translations[currentLang].statusWarning || 'Изтича скоро!';
+            } else {
+                status = 'Изтича скоро!';
+            }
             statusClass = 'status-warning';
         } else {
-            status = typeof t !== 'undefined' ? t('statusOK') : 'Годна';
+            if (typeof translations !== 'undefined' && translations[currentLang]) {
+                status = translations[currentLang].statusOK || 'Годна';
+            } else {
+                status = 'Годна';
+            }
             statusClass = 'status-ok';
         }
     }
@@ -1671,15 +1766,15 @@ function createRecordCard(record) {
             </div>
         </div>
         <div class="record-expiry">
-            <span class="record-expiry-label">${typeof t !== 'undefined' ? t('expiryLabel') : 'Срок на годност'}:</span>
+            <span class="record-expiry-label">${(typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].expiryLabel) ? translations[currentLang].expiryLabel : 'Срок на годност'}:</span>
             <span class="record-expiry-date">${formattedExpiry}</span>
             <span class="record-status ${statusClass}">${status}</span>
         </div>
         ${record.notes ? `<div class="record-notes">${record.notes}</div>` : ''}
         <div class="record-actions">
             ${recordNumber ? `<span class="record-number-display">#${recordNumber}</span>` : ''}
-            <button class="btn-edit" data-record-id="${record.id}" title="${typeof t !== 'undefined' ? t('edit') : 'Редактирай'}">✏️</button>
-            <button class="btn-delete" data-record-id="${record.id}" title="${typeof t !== 'undefined' ? t('delete') : 'Изтрий'}">🗑️</button>
+            <button class="btn-edit" data-record-id="${record.id}" title="${(typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].edit) ? translations[currentLang].edit : 'Редактирай'}">✏️</button>
+            <button class="btn-delete" data-record-id="${record.id}" title="${(typeof translations !== 'undefined' && translations[currentLang] && translations[currentLang].delete) ? translations[currentLang].delete : 'Изтрий'}">🗑️</button>
         </div>
     `;
     

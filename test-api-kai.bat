@@ -1,43 +1,36 @@
 @echo off
-chcp 65001 >nul
-echo ========================================
-echo   Тест на API за код KAI
-echo ========================================
+echo ============================================
+echo Тест на API за код KAI
+echo ============================================
 echo.
 
-echo [INFO] Тестване на API endpoint за код KAI...
-echo.
+REM Промени този URL според твоя Render.com backend URL
+set "API_URL=https://mamafood.onrender.com"
 
-REM Тест 1: Health check
-echo [TEST 1] Health check...
-curl -s http://localhost:3000/api/health
+echo Тестване на Health Check...
+curl -s "%API_URL%/api/health"
 echo.
 echo.
 
-REM Тест 2: Записи за KAI
-echo [TEST 2] Записи за код KAI...
-echo.
-curl -s http://localhost:3000/api/records/KAI | python -m json.tool 2>nul
-if errorlevel 1 (
-    echo [RAW RESPONSE:]
-    curl -s http://localhost:3000/api/records/KAI
-)
+echo Тестване на API за код KAI...
+curl -s "%API_URL%/api/records/KAI"
 echo.
 echo.
 
-REM Тест 3: Записи за kai (малки букви)
-echo [TEST 3] Записи за код kai (малки букви)...
-curl -s http://localhost:3000/api/records/kai
+echo Тестване на API за код KAI (case-insensitive)...
+curl -s "%API_URL%/api/records/kai"
 echo.
 echo.
 
-REM Тест 4: Всички налични кодове (ако има такъв endpoint)
-echo [TEST 4] Проверка на всички кодове в базата...
-echo (Това изисква допълнителен endpoint)
+echo Тестване на Children API за код KAI...
+curl -s "%API_URL%/api/children/KAI"
+echo.
 echo.
 
-echo [INFO] Провери конзолата на backend сървъра за подробна информация!
-echo.
-
+echo ============================================
+echo Ако виждаш грешки, провери:
+echo 1. URL-ът е правилен: %API_URL%
+echo 2. Render.com service е активен
+echo 3. Провери Logs в Render.com Dashboard
+echo ============================================
 pause
-
