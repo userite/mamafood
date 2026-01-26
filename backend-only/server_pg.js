@@ -17,6 +17,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const webpush = require('web-push');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -173,6 +174,8 @@ app.use(cors({
     origin: [
         'https://pci.inex-project.net',
         'http://pci.inex-project.net',
+        'https://inex-project.net',
+        'http://inex-project.net',
         'http://localhost:3000',
         'http://localhost:8000',
         'https://mamafood.onrender.com'
@@ -239,6 +242,48 @@ if (VAPID_PUBLIC && VAPID_PRIVATE && VAPID_PUBLIC.length > 50) {
         console.log('✅ Table "push_subscriptions" is ready.');
     } catch (e) {
         console.error('❌ Failed ensuring "push_subscriptions" table:', e.message);
+    }
+})();
+
+// Ensure UIK tables exist
+(async () => {
+    try {
+        // UIK registrations table
+        await pool.query(`CREATE TABLE IF NOT EXISTS uik_registrations (
+            uik UUID PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            personal_id VARCHAR(50) UNIQUE,
+            address TEXT,
+            phone VARCHAR(50),
+            email VARCHAR(255),
+            pin_hash TEXT NOT NULL,
+            attach_keyword VARCHAR(255),
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );`);
+        console.log('✅ Table "uik_registrations" is ready.');
+        
+        // UIK devices table
+        await pool.query(`CREATE TABLE IF NOT EXISTS uik_devices (
+            id SERIAL PRIMARY KEY,
+            uik UUID NOT NULL REFERENCES uik_registrations(uik) ON DELETE CASCADE,
+            device_serial VARCHAR(255) NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (uik, device_serial)
+        );`);
+        console.log('✅ Table "uik_devices" is ready.');
+        
+        // UIK URLs table
+        await pool.query(`CREATE TABLE IF NOT EXISTS uik_urls (
+            id SERIAL PRIMARY KEY,
+            uik UUID NOT NULL REFERENCES uik_registrations(uik) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            url TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (uik, url)
+        );`);
+        console.log('✅ Table "uik_urls" is ready.');
+    } catch (e) {
+        console.error('❌ Failed ensuring UIK tables:', e.message);
     }
 })();
 
@@ -729,6 +774,412 @@ app.post('/api/devices', async (req, res) => {
     } catch (error) {
         console.error('Error registering device:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// UIK System API Endpoints
+// ============================================
+
+// Helper function to hash PIN
+function hashPIN(pin) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(pin, salt, 10000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+}
+
+// Helper function to verify PIN
+function verifyPIN(pin, hash) {
+    const [salt, hashValue] = hash.split(':');
+    const verifyHash = crypto.pbkdf2Sync(pin, salt, 10000, 64, 'sha512').toString('hex');
+    return hashValue === verifyHash;
+}
+
+// Register new UIK account
+app.post('/api/uik/register', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { name, personal_id, address, phone, email, pin, attach_keyword, device_serial } = req.body;
+        
+        console.log('[POST /api/uik/register] Получени данни:', {
+            name: name ? '***' : null,
+            personal_id: personal_id ? '***' : null,
+            hasAddress: !!address,
+            hasPhone: !!phone,
+            hasEmail: !!email,
+            hasPin: !!pin,
+            device_serial: device_serial ? device_serial.substring(0, 20) + '...' : null
+        });
+        
+        if (!name || !personal_id || !pin) {
+            await client.query('ROLLBACK');
+            console.error('[POST /api/uik/register] Липсват задължителни полета:', {
+                hasName: !!name,
+                hasPersonalId: !!personal_id,
+                hasPin: !!pin
+            });
+            return res.status(400).json({ error: 'Име, личен ID и PIN са задължителни' });
+        }
+        
+        // Хеширане на PIN
+        const pinHash = hashPIN(pin);
+        
+        // Генериране на UIK (UUID)
+        const { rows: uikRows } = await client.query('SELECT gen_random_uuid() as uik');
+        const uik = uikRows[0].uik;
+        
+        // Проверка дали вече има регистрация с този personal_id
+        const existingCheck = await client.query(
+            'SELECT uik FROM uik_registrations WHERE personal_id = $1',
+            [personal_id]
+        );
+        
+        if (existingCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Вече съществува регистрация с този личен ID' });
+        }
+        
+        // Валидация на email формат (ако е подаден)
+        if (email && email.trim()) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email.trim())) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Невалиден email формат' });
+            }
+        }
+        
+        // Вмъкване на регистрацията
+        await client.query(
+            `INSERT INTO uik_registrations (uik, name, personal_id, address, phone, email, pin_hash, attach_keyword)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [uik, name, personal_id || null, address || null, phone || null, email || null, pinHash, attach_keyword || null]
+        );
+        
+        // Регистриране на устройството (ако е подаден device_serial)
+        if (device_serial) {
+            await client.query(
+                'INSERT INTO uik_devices (uik, device_serial) VALUES ($1, $2)',
+                [uik, device_serial]
+            );
+            console.log(`✅ Устройство регистрирано: ${device_serial} за UIK: ${uik}`);
+        }
+        
+        await client.query('COMMIT');
+        console.log(`✅ UIK регистрация създадена: ${uik}`);
+        
+        res.json({ 
+            success: true, 
+            uik: uik,
+            message: 'Регистрацията е успешна' 
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error registering UIK:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Attach device to existing UIK account
+app.post('/api/uik/attach', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { personal_id, device_serial, pin } = req.body;
+        
+        if (!personal_id || !device_serial || !pin) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Личен ID, сериен номер на устройството и PIN са задължителни' });
+        }
+        
+        // Намиране на регистрацията по personal_id
+        const { rows } = await client.query(
+            'SELECT uik, pin_hash FROM uik_registrations WHERE personal_id = $1',
+            [personal_id]
+        );
+        
+        if (rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Не е намерена регистрация с този личен ID' });
+        }
+        
+        const { uik, pin_hash } = rows[0];
+        
+        // Проверка на PIN
+        if (!verifyPIN(pin, pin_hash)) {
+            await client.query('ROLLBACK');
+            return res.status(401).json({ error: 'Невалиден PIN' });
+        }
+        
+        // Проверка дали устройството вече е регистрирано
+        const deviceCheck = await client.query(
+            'SELECT id FROM uik_devices WHERE uik = $1 AND device_serial = $2',
+            [uik, device_serial]
+        );
+        
+        if (deviceCheck.rows.length === 0) {
+            // Регистриране на ново устройство
+            await client.query(
+                'INSERT INTO uik_devices (uik, device_serial) VALUES ($1, $2)',
+                [uik, device_serial]
+            );
+        }
+        
+        await client.query('COMMIT');
+        console.log(`✅ Устройство прикачено към UIK: ${uik}`);
+        
+        res.json({ 
+            success: true, 
+            uik: uik,
+            message: 'Устройството е прикачено успешно' 
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error attaching device:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Verify UIK + device_serial + PIN
+app.post('/api/uik/verify', async (req, res) => {
+    try {
+        const { uik, device_serial, pin } = req.body;
+        
+        if (!uik || !device_serial || !pin) {
+            return res.status(400).json({ error: 'UIK, сериен номер на устройството и PIN са задължителни' });
+        }
+        
+        // Проверка на регистрацията
+        const { rows: regRows } = await pool.query(
+            'SELECT uik, name, pin_hash FROM uik_registrations WHERE uik = $1',
+            [uik]
+        );
+        
+        if (regRows.length === 0) {
+            return res.status(404).json({ error: 'Не е намерена регистрация с този UIK' });
+        }
+        
+        const { name, pin_hash } = regRows[0];
+        
+        // Проверка на PIN
+        if (!verifyPIN(pin, pin_hash)) {
+            return res.status(401).json({ error: 'Невалиден PIN' });
+        }
+        
+        // Проверка дали устройството е регистрирано за този UIK
+        const { rows: deviceRows } = await pool.query(
+            'SELECT id FROM uik_devices WHERE uik = $1 AND device_serial = $2',
+            [uik, device_serial]
+        );
+        
+        if (deviceRows.length === 0) {
+            return res.status(403).json({ error: 'Устройството не е регистрирано за този UIK' });
+        }
+        
+        res.json({ 
+            success: true, 
+            uik: uik,
+            name: name,
+            message: 'Проверката е успешна' 
+        });
+    } catch (error) {
+        console.error('Error verifying UIK:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get UIK registration info (без чувствителни данни)
+app.get('/api/uik/info/:uik', async (req, res) => {
+    try {
+        const { uik } = req.params;
+        
+        const { rows } = await pool.query(
+            'SELECT uik, name, created_at FROM uik_registrations WHERE uik = $1',
+            [uik]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Не е намерена регистрация с този UIK' });
+        }
+        
+        res.json(rows[0]);
+    } catch (error) {
+        console.error('Error fetching UIK info:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete UIK registration (за RESET функционалност)
+app.delete('/api/uik/:uik', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { uik } = req.params;
+        
+        // Проверка дали записът съществува
+        const { rows } = await client.query(
+            'SELECT uik FROM uik_registrations WHERE uik = $1',
+            [uik]
+        );
+        
+        if (rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Не е намерена регистрация с този UIK' });
+        }
+        
+        // Изтриване на всички свързани записи (устройствата ще се изтрият автоматично заради CASCADE)
+        await client.query('DELETE FROM uik_registrations WHERE uik = $1', [uik]);
+        
+        await client.query('COMMIT');
+        console.log(`✅ UIK регистрация изтрита: ${uik}`);
+        
+        res.json({ 
+            success: true, 
+            message: 'Регистрацията е изтрита успешно' 
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting UIK:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// ============================================
+// UIK URLs API Endpoints (URL Manager)
+// ============================================
+
+// Get all URLs for a UIK
+app.get('/api/uik/:uik/urls', async (req, res) => {
+    try {
+        const { uik } = req.params;
+        
+        // Проверка дали UIK съществува
+        const uikCheck = await pool.query(
+            'SELECT uik FROM uik_registrations WHERE uik = $1',
+            [uik]
+        );
+        
+        if (uikCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Не е намерена регистрация с този UIK' });
+        }
+        
+        const { rows } = await pool.query(
+            'SELECT id, name, url, created_at FROM uik_urls WHERE uik = $1 ORDER BY created_at DESC',
+            [uik]
+        );
+        
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching URLs:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Add new URL for a UIK
+app.post('/api/uik/:uik/urls', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { uik } = req.params;
+        const { name, url } = req.body;
+        
+        // Проверка на задължителните полета
+        if (!name || !url) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Име и URL са задължителни' });
+        }
+        
+        // Проверка дали UIK съществува
+        const uikCheck = await client.query(
+            'SELECT uik FROM uik_registrations WHERE uik = $1',
+            [uik]
+        );
+        
+        if (uikCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Не е намерена регистрация с този UIK' });
+        }
+        
+        // Валидация на URL формат
+        try {
+            new URL(url);
+        } catch (e) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Невалиден URL формат' });
+        }
+        
+        // Проверка дали URL вече съществува за този UIK
+        const existingCheck = await client.query(
+            'SELECT id FROM uik_urls WHERE uik = $1 AND url = $2',
+            [uik, url]
+        );
+        
+        if (existingCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Този URL вече е добавен' });
+        }
+        
+        // Вмъкване на нов URL
+        const { rows } = await client.query(
+            'INSERT INTO uik_urls (uik, name, url) VALUES ($1, $2, $3) RETURNING id, name, url, created_at',
+            [uik, name.trim(), url.trim()]
+        );
+        
+        await client.query('COMMIT');
+        console.log(`✅ URL добавен за UIK ${uik}: ${name}`);
+        
+        res.json(rows[0]);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error adding URL:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Delete URL for a UIK
+app.delete('/api/uik/:uik/urls/:id', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { uik, id } = req.params;
+        
+        // Проверка дали URL съществува и принадлежи на този UIK
+        const { rows } = await client.query(
+            'SELECT id FROM uik_urls WHERE id = $1 AND uik = $2',
+            [id, uik]
+        );
+        
+        if (rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'URL не е намерен' });
+        }
+        
+        // Изтриване на URL
+        await client.query('DELETE FROM uik_urls WHERE id = $1 AND uik = $2', [id, uik]);
+        
+        await client.query('COMMIT');
+        console.log(`✅ URL изтрит: ${id} за UIK ${uik}`);
+        
+        res.json({ success: true, message: 'URL е изтрит успешно' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting URL:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
     }
 });
 
