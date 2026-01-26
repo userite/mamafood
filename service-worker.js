@@ -1,6 +1,6 @@
 // Service Worker for PWA - Universal compatibility
-const CACHE_NAME = 'mamafood-v13';
-const VERSION = '13.0.0';
+const CACHE_NAME = 'mamafood-v14';
+const VERSION = '14.0.0';
 
 // Install event - cache files
 self.addEventListener('install', (event) => {
@@ -13,14 +13,14 @@ self.addEventListener('install', (event) => {
                 // Try to cache, but don't fail if files are not found
                 return cache.addAll([
                     './',
-                    './index.html?v=13',
-                    './styles.css?v=3',
-                    './app_v2.js?v=13',
-                    './i18n.js?v=2',
-                    './uik.js?v=1',
-                    './uik-ui.js?v=1',
-                    './url-manager.js?v=1',
-                    './manifest.json?v=2'
+                    './index.html?v=14',
+                    './styles.css?v=4',
+                    './app_v2.js?v=14',
+                    './i18n.js?v=3',
+                    './uik.js?v=2',
+                    './uik-ui.js?v=2',
+                    './url-manager.js?v=2',
+                    './manifest.json?v=3'
                 ]).catch(err => {
                     console.log('[Service Worker] Cache addAll error:', err);
                 });

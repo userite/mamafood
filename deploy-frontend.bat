@@ -11,7 +11,7 @@ set "FTP_HOST=pci.inex-project.net"
 set "FTP_USER=demo@inex-project.net"
 set "FTP_PASS=demo123123"
 set "FTP_DIR=/public_html/demo/PCI"
-set "FTP_DIR_ALT=/var/www/mamafood"
+set "FTP_DIR_ALT=/public_html"
 
 REM Проверка дали curl е инсталиран
 where curl >nul 2>&1
@@ -42,6 +42,9 @@ echo   - i18n.js
 echo   - styles.css
 echo   - manifest.json
 echo   - service-worker.js
+echo   - uik.js
+echo   - uik-ui.js
+echo   - url-manager.js
 echo.
 
 REM Потвърждение
@@ -98,14 +101,36 @@ if exist "service-worker.js" (
     )
 )
 
+if exist "uik.js" (
+    echo [INFO] Качване на uik.js...
+    curl.exe -T "uik.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/uik.js" --ftp-create-dirs
+    if %errorlevel% neq 0 (
+        curl.exe -T "uik.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/uik.js" --ftp-create-dirs
+    )
+)
+
+if exist "uik-ui.js" (
+    echo [INFO] Качване на uik-ui.js...
+    curl.exe -T "uik-ui.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/uik-ui.js" --ftp-create-dirs
+    if %errorlevel% neq 0 (
+        curl.exe -T "uik-ui.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/uik-ui.js" --ftp-create-dirs
+    )
+)
+
+if exist "url-manager.js" (
+    echo [INFO] Качване на url-manager.js...
+    curl.exe -T "url-manager.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR%/url-manager.js" --ftp-create-dirs
+    if %errorlevel% neq 0 (
+        curl.exe -T "url-manager.js" --user "%FTP_USER%:%FTP_PASS%" "ftp://%FTP_HOST%%FTP_DIR_ALT%/url-manager.js" --ftp-create-dirs
+    )
+)
+
 echo.
 echo ========================================
 echo [INFO] Качването е завършено!
 echo.
 echo [INFO] Провери приложението на:
-echo   https://%FTP_HOST%/mamafood/
-echo   или
-echo   https://%FTP_HOST%/
+echo   https://inex-project.net/demo/PCI/
 echo.
 echo [INFO] Уверете се, че app_v2.js е конфигуриран с правилния API_BASE!
 echo ========================================
