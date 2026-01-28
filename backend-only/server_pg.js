@@ -282,6 +282,152 @@ if (VAPID_PUBLIC && VAPID_PRIVATE && VAPID_PUBLIC.length > 50) {
             UNIQUE (uik, url)
         );`);
         console.log('✅ Table "uik_urls" is ready.');
+
+        // Таблица 8: accounting_chart (Счетоводен сметкоплан)
+        try {
+            // Проверка дали таблицата съществува
+            const tableExists = await pool.query(`
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'accounting_chart'
+                );
+            `);
+            
+            if (!tableExists.rows[0].exists) {
+                // Създаване на нова таблица с UUID
+                await pool.query(`
+                    CREATE TABLE accounting_chart (
+                        uik_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        uik_idfat UUID REFERENCES accounting_chart(uik_id) ON DELETE CASCADE,
+                        code VARCHAR(50) NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (code)
+                    );
+                `);
+                console.log('✅ Table "accounting_chart" created with UUID.');
+            } else {
+                // Проверка дали uik_id е INTEGER/SERIAL и миграция към UUID
+                const columnInfo = await pool.query(`
+                    SELECT data_type 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'accounting_chart' 
+                    AND column_name = 'uik_id';
+                `);
+                
+                if (columnInfo.rows.length > 0) {
+                    const dataType = columnInfo.rows[0].data_type;
+                    
+                    if (dataType === 'integer' || dataType === 'smallint' || dataType === 'bigint') {
+                        console.log('🔄 Migrating accounting_chart from INTEGER to UUID...');
+                        
+                        // Временно преименуване на старите колони
+                        await pool.query(`ALTER TABLE accounting_chart RENAME COLUMN uik_id TO uik_id_old;`);
+                        await pool.query(`ALTER TABLE accounting_chart RENAME COLUMN uik_idfat TO uik_idfat_old;`);
+                        
+                        // Създаване на нови UUID колони
+                        await pool.query(`ALTER TABLE accounting_chart ADD COLUMN uik_id UUID DEFAULT gen_random_uuid();`);
+                        await pool.query(`ALTER TABLE accounting_chart ADD COLUMN uik_idfat UUID;`);
+                        
+                        // Генериране на UUID за съществуващите записи
+                        await pool.query(`
+                            UPDATE accounting_chart 
+                            SET uik_id = gen_random_uuid();
+                        `);
+                        
+                        // Обновяване на parent референциите
+                        await pool.query(`
+                            UPDATE accounting_chart ac1
+                            SET uik_idfat = ac2.uik_id
+                            FROM accounting_chart ac2
+                            WHERE ac1.uik_idfat_old = ac2.uik_id_old
+                            AND ac1.uik_idfat_old IS NOT NULL;
+                        `);
+                        
+                        // Изтриване на старите колони и constraints
+                        await pool.query(`ALTER TABLE accounting_chart DROP CONSTRAINT IF EXISTS accounting_chart_pkey;`);
+                        await pool.query(`ALTER TABLE accounting_chart DROP CONSTRAINT IF EXISTS accounting_chart_uik_idfat_fkey;`);
+                        await pool.query(`ALTER TABLE accounting_chart DROP COLUMN uik_id_old;`);
+                        await pool.query(`ALTER TABLE accounting_chart DROP COLUMN uik_idfat_old;`);
+                        
+                        // Добавяне на нови constraints
+                        await pool.query(`ALTER TABLE accounting_chart ADD PRIMARY KEY (uik_id);`);
+                        await pool.query(`
+                            ALTER TABLE accounting_chart 
+                            ADD CONSTRAINT accounting_chart_uik_idfat_fkey 
+                            FOREIGN KEY (uik_idfat) 
+                            REFERENCES accounting_chart(uik_id) 
+                            ON DELETE CASCADE;
+                        `);
+                        
+                        console.log('✅ Migration to UUID completed.');
+                    } else if (dataType !== 'uuid') {
+                        console.log(`⚠️  Warning: uik_id column type is ${dataType}, expected UUID.`);
+                    }
+                }
+            }
+            
+            // Осигуряване че всички колони съществуват
+            await pool.query(`
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'uik_id') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN uik_id UUID PRIMARY KEY DEFAULT gen_random_uuid();
+                    END IF;
+                    
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'uik_idfat') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN uik_idfat UUID REFERENCES accounting_chart(uik_id) ON DELETE CASCADE;
+                    END IF;
+                    
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'code') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN code VARCHAR(50) NOT NULL DEFAULT '';
+                    END IF;
+                    
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'name') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN name VARCHAR(255) NOT NULL DEFAULT '';
+                    END IF;
+                    
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'created_at') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                    END IF;
+                    
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name = 'accounting_chart' AND column_name = 'updated_at') THEN
+                        ALTER TABLE accounting_chart ADD COLUMN updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+                    END IF;
+                END $$;
+            `);
+            
+            // Trigger за автоматично обновяване на updated_at
+            await pool.query(`
+                CREATE OR REPLACE FUNCTION update_accounting_chart_updated_at()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    NEW.updated_at = CURRENT_TIMESTAMP;
+                    RETURN NEW;
+                END;
+                $$ language 'plpgsql';
+            `);
+            
+            await pool.query(`
+                DROP TRIGGER IF EXISTS update_accounting_chart_updated_at_trigger ON accounting_chart;
+                CREATE TRIGGER update_accounting_chart_updated_at_trigger 
+                    BEFORE UPDATE ON accounting_chart
+                    FOR EACH ROW EXECUTE FUNCTION update_accounting_chart_updated_at();
+            `);
+            
+            console.log('✅ Table "accounting_chart" is ready with UUID.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "accounting_chart" table:', e.message);
+            console.error('Stack:', e.stack);
+        }
     } catch (e) {
         console.error('❌ Failed ensuring UIK tables:', e.message);
     }
@@ -1177,6 +1323,301 @@ app.delete('/api/uik/:uik/urls/:id', async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error deleting URL:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// ============================================
+// Accounting Chart API (Счетоводен сметкоплан)
+// ============================================
+
+// DELETE - Изтрий всички записи (за импорт) - ТРЯБВА ДА Е ПРЕДИ /:id routes
+app.delete('/api/accounting-chart/clear', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // Изтриване на всички записи (CASCADE ще изтрие и децата)
+        await client.query('DELETE FROM accounting_chart');
+        
+        await client.query('COMMIT');
+        console.log('✅ Всички записи от accounting_chart са изтрити');
+        
+        res.json({ success: true, message: 'Всички записи са изтрити' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error clearing accounting chart:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// GET - Вземи всички записи от счетоводния план (с йерархична структура)
+app.get('/api/accounting-chart', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { rows } = await client.query(`
+            SELECT uik_id, uik_idfat, code, name, created_at, updated_at
+            FROM accounting_chart
+            ORDER BY code
+        `);
+        
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching accounting chart:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// GET - Вземи един запис по ID
+app.get('/api/accounting-chart/:id', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { id } = req.params;
+        
+        // Защита: не позволяваме "clear" като ID
+        if (id === 'clear') {
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        // Валидация на UUID формат
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            return res.status(400).json({ error: 'Невалиден UUID формат' });
+        }
+        
+        const { rows } = await client.query(
+            'SELECT uik_id, uik_idfat, code, name, created_at, updated_at FROM accounting_chart WHERE uik_id = $1',
+            [id]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        res.json(rows[0]);
+    } catch (error) {
+        console.error('Error fetching accounting chart item:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// POST - Създай нов запис
+app.post('/api/accounting-chart', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { uik_idfat, code, name } = req.body;
+        
+        // Валидация
+        if (!code || !name) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Code и name са задължителни полета' });
+        }
+        
+        // Проверка за уникалност на code
+        const existingCheck = await client.query(
+            'SELECT uik_id FROM accounting_chart WHERE code = $1',
+            [code.trim()]
+        );
+        
+        if (existingCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Запис с този code вече съществува' });
+        }
+        
+        // Проверка дали parent съществува (ако е зададен)
+        if (uik_idfat !== null && uik_idfat !== undefined) {
+            const parentCheck = await client.query(
+                'SELECT uik_id FROM accounting_chart WHERE uik_id = $1',
+                [uik_idfat]
+            );
+            
+            if (parentCheck.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Parent записът не съществува' });
+            }
+        }
+        
+        // Вмъкване на нов запис
+        const { rows } = await client.query(
+            'INSERT INTO accounting_chart (uik_idfat, code, name) VALUES ($1, $2, $3) RETURNING uik_id, uik_idfat, code, name, created_at, updated_at',
+            [uik_idfat || null, code.trim(), name.trim()]
+        );
+        
+        await client.query('COMMIT');
+        console.log(`✅ Счетоводен запис създаден: ${code} - ${name}`);
+        
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error creating accounting chart item:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// PUT - Редактирай запис
+app.put('/api/accounting-chart/:id', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { id } = req.params;
+        
+        // Защита: не позволяваме "clear" като ID
+        if (id === 'clear') {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        // Валидация на UUID формат
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Невалиден UUID формат' });
+        }
+        const { code, name, uik_idfat } = req.body;
+        
+        // Проверка дали записът съществува
+        const existingCheck = await client.query(
+            'SELECT uik_id FROM accounting_chart WHERE uik_id = $1',
+            [id]
+        );
+        
+        if (existingCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        // Валидация
+        if (!code || !name) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Code и name са задължителни полета' });
+        }
+        
+        // Проверка за уникалност на code (ако е променен)
+        const codeCheck = await client.query(
+            'SELECT uik_id FROM accounting_chart WHERE code = $1 AND uik_id != $2',
+            [code.trim(), id]
+        );
+        
+        if (codeCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Запис с този code вече съществува' });
+        }
+        
+        // Проверка дали parent съществува (ако е зададен и е различен от текущия)
+        if (uik_idfat !== null && uik_idfat !== undefined && uik_idfat !== id) {
+            const parentCheck = await client.query(
+                'SELECT uik_id FROM accounting_chart WHERE uik_id = $1',
+                [uik_idfat]
+            );
+            
+            if (parentCheck.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Parent записът не съществува' });
+            }
+            
+            // Проверка за цикличност (не може да се направи parent на себе си или на свой потомък)
+            const cycleCheck = await client.query(
+                `WITH RECURSIVE descendants AS (
+                    SELECT uik_id FROM accounting_chart WHERE uik_id = $1
+                    UNION ALL
+                    SELECT ac.uik_id FROM accounting_chart ac
+                    INNER JOIN descendants d ON ac.uik_idfat = d.uik_id
+                )
+                SELECT uik_id FROM descendants WHERE uik_id = $2`,
+                [uik_idfat, id]
+            );
+            
+            if (cycleCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Не може да се направи циклично рефериране (parent не може да бъде потомък)' });
+            }
+        }
+        
+        // Обновяване на записа
+        const { rows } = await client.query(
+            'UPDATE accounting_chart SET code = $1, name = $2, uik_idfat = $3 WHERE uik_id = $4 RETURNING uik_id, uik_idfat, code, name, created_at, updated_at',
+            [code.trim(), name.trim(), uik_idfat || null, id]
+        );
+        
+        await client.query('COMMIT');
+        console.log(`✅ Счетоводен запис обновен: ${id} - ${code} - ${name}`);
+        
+        res.json(rows[0]);
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error updating accounting chart item:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// DELETE - Изтрий запис
+app.delete('/api/accounting-chart/:id', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        const { id } = req.params;
+        
+        // Защита: не позволяваме "clear" като ID
+        if (id === 'clear') {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        // Валидация на UUID формат
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Невалиден UUID формат' });
+        }
+        
+        // Проверка дали записът съществува
+        const existingCheck = await client.query(
+            'SELECT uik_id FROM accounting_chart WHERE uik_id = $1',
+            [id]
+        );
+        
+        if (existingCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Записът не е намерен' });
+        }
+        
+        // Проверка дали има потомци (детски записи)
+        const childrenCheck = await client.query(
+            'SELECT COUNT(*) as count FROM accounting_chart WHERE uik_idfat = $1',
+            [id]
+        );
+        
+        if (parseInt(childrenCheck.rows[0].count) > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Не може да се изтрие запис с потомци. Първо изтрийте или преместете потомците.' });
+        }
+        
+        // Изтриване на записа
+        await client.query('DELETE FROM accounting_chart WHERE uik_id = $1', [id]);
+        
+        await client.query('COMMIT');
+        console.log(`✅ Счетоводен запис изтрит: ${id}`);
+        
+        res.json({ success: true, message: 'Записът е изтрит успешно' });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error deleting accounting chart item:', error);
         res.status(500).json({ error: error.message });
     } finally {
         client.release();
