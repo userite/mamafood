@@ -101,6 +101,17 @@
                         <label for="uik-login-pin">PIN код</label>
                         <input type="password" id="uik-login-pin" required placeholder="Въведете PIN код" autofocus>
                     </div>
+                    <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                        <label>
+                            <input type="checkbox" id="uik-login-use-personal-id" style="margin-right: 0.5rem;">
+                            Използвай личен ID вместо UIK (ако UIK не работи)
+                        </label>
+                    </div>
+                    <div class="form-group" id="uik-login-personal-id-group" style="display: none;">
+                        <label for="uik-login-personal-id">Личен ID (ЕГН/БУЛСТАТ)</label>
+                        <input type="text" id="uik-login-personal-id" placeholder="Въведете личен ID от регистрацията">
+                        <small>Използвайте това ако UIK в localStorage не работи</small>
+                    </div>
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Вход</button>
                         <button type="button" class="btn btn-secondary" onclick="showUIKReset()">RESET</button>
@@ -123,7 +134,6 @@
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-primary" onclick="startApp()">СТАРТ</button>
                     <button type="button" class="btn btn-secondary" onclick="showURLManager()">🌐 URL Меню</button>
                     <button type="button" class="btn btn-secondary" onclick="showUIKReset()">RESET</button>
                 </div>

@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест на UIK API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px 0;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #2196F3;
+        }
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Тест на UIK API</h1>
+        
+        <div class="info">
+            <strong>💡 Информация:</strong><br>
+            • За локално тестване използвай: <code>http://localhost:3000</code><br>
+            • За production използвай: <code>https://mamafood.onrender.com</code><br>
+            • Можеш да вземеш UIK и device_serial от localStorage на основното приложение<br><br>
+            
+            <strong>⚠️ ВАЖНО - CORS проблеми:</strong><br>
+            Ако виждаш "Failed to fetch" грешка, вероятно е CORS проблем. Решения:<br>
+            1. <strong>Хоствай файла на локален сървър:</strong><br>
+               &nbsp;&nbsp;• Python: <code>python -m http.server 8000</code><br>
+               &nbsp;&nbsp;• Node.js: <code>npx http-server -p 8000</code><br>
+               &nbsp;&nbsp;• След това отвори: <code>http://localhost:8000/test-uik-api.html</code><br>
+            2. <strong>Или използвай браузър с изключени CORS проверки</strong> (само за тестване!)<br><br>
+            
+            <button class="secondary" onclick="testServerConnection()" style="margin-top: 10px;">🔍 Провери връзка със сървъра</button>
+            <div id="server-check-result" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- 1. VERIFY UIK + PIN -->
+        <div class="section">
+            <h2>1️⃣ Проверка на PIN и връщане на UIK</h2>
+            <p><strong>Endpoint:</strong> <code>POST /api/uik/verify</code></p>
+            
+            <label for="api-base">API Base URL:</label>
+            <select id="api-base">
+                <option value="http://localhost:3000">http://localhost:3000 (Локално)</option>
+                <option value="https://mamafood.onrender.com">https://mamafood.onrender.com (Production)</option>
+            </select>
+            
+            <label for="verify-uik">UIK (Универсален Идентификационен Ключ):</label>
+            <input type="text" id="verify-uik" placeholder="Въведете UIK (UUID формат)">
+            
+            <label for="verify-device-serial">Device Serial (Серийнен номер на устройството):</label>
+            <input type="text" id="verify-device-serial" placeholder="Въведете device_serial или генерирайте нов">
+            <div style="margin-bottom: 10px;">
+                <button class="secondary" onclick="getDeviceSerialFromStorage()">📋 Вземи/Генерирай device_serial</button>
+                <button class="secondary" onclick="showAllLocalStorage()" style="margin-left: 5px;">🔍 Покажи всички данни</button>
+            </div>
+            <small style="color: #666; display: block; margin-top: -10px; margin-bottom: 10px;">
+                💡 Ако няма device_serial в localStorage, ще бъде генериран нов автоматично
+            </small>
+            
+            <label for="verify-pin">PIN код:</label>
+            <input type="password" id="verify-pin" placeholder="Въведете PIN код">
+            
+            <button onclick="testVerify()">✅ Тествай VERIFY</button>
+            <div id="verify-result"></div>
+        </div>
+
+        <!-- 2. GET UIK INFO -->
+        <div class="section">
+            <h2>2️⃣ Получаване на информация за UIK</h2>
+            <p><strong>Endpoint:</strong> <code>GET /api/uik/info/:uik</code></p>
+            
+            <label for="info-uik">UIK:</label>
+            <input type="text" id="info-uik" placeholder="Въведете UIK">
+            <button onclick="testGetInfo()">📋 Тествай GET INFO</button>
+            <div id="info-result"></div>
+        </div>
+
+        <!-- 3. REGISTER UIK -->
+        <div class="section">
+            <h2>3️⃣ Регистрация на нов UIK</h2>
+            <p><strong>Endpoint:</strong> <code>POST /api/uik/register</code></p>
+            
+            <label for="reg-name">Име:</label>
+            <input type="text" id="reg-name" placeholder="Име на потребителя">
+            
+            <label for="reg-personal-id">Личен ID (ЕГН/БУЛСТАТ):</label>
+            <input type="text" id="reg-personal-id" placeholder="ЕГН или БУЛСТАТ">
+            
+            <label for="reg-address">Адрес (опционално):</label>
+            <input type="text" id="reg-address" placeholder="Адрес">
+            
+            <label for="reg-phone">Телефон (опционално):</label>
+            <input type="text" id="reg-phone" placeholder="Телефон">
+            
+            <label for="reg-email">Email (опционално):</label>
+            <input type="email" id="reg-email" placeholder="Email">
+            
+            <label for="reg-pin">PIN код:</label>
+            <input type="password" id="reg-pin" placeholder="Минимум 4 символа">
+            
+            <label for="reg-attach-keyword">Attach Keyword (опционално):</label>
+            <input type="text" id="reg-attach-keyword" placeholder="Ключова дума за прикачване">
+            
+            <button onclick="testRegister()">➕ Тествай REGISTER</button>
+            <div id="register-result"></div>
+        </div>
+
+        <!-- 4. ATTACH TO UIK -->
+        <div class="section">
+            <h2>4️⃣ Прикачване към съществуващ UIK</h2>
+            <p><strong>Endpoint:</strong> <code>POST /api/uik/attach</code></p>
+            
+            <label for="attach-personal-id">Личен ID (ЕГН/БУЛСТАТ):</label>
+            <input type="text" id="attach-personal-id" placeholder="ЕГН или БУЛСТАТ от регистрацията">
+            
+            <label for="attach-pin">PIN код:</label>
+            <input type="password" id="attach-pin" placeholder="PIN код от регистрацията">
+            
+            <button onclick="testAttach()">🔗 Тествай ATTACH</button>
+            <div id="attach-result"></div>
+        </div>
+
+        <!-- 5. Тестване от конзолата -->
+        <div class="section">
+            <h2>5️⃣ Тестване от конзолата на браузъра</h2>
+            <p>Ако имаш проблеми с формата, можеш да тестваш директно от конзолата (F12):</p>
+            <div style="background: #f4f4f4; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; overflow-x: auto;">
+                <strong>Пример за VERIFY:</strong><br>
+                <code>
+const uik = 'твоят-uik';<br>
+const deviceSerial = localStorage.getItem('mamafood_device_serial');<br>
+const pin = 'твоят-pin';<br>
+<br>
+fetch('http://localhost:3000/api/uik/verify', {<br>
+&nbsp;&nbsp;method: 'POST',<br>
+&nbsp;&nbsp;headers: { 'Content-Type': 'application/json' },<br>
+&nbsp;&nbsp;body: JSON.stringify({ uik, device_serial: deviceSerial, pin })<br>
+})<br>
+.then(res => res.json())<br>
+.then(data => console.log('Резултат:', data))<br>
+.catch(err => console.error('Грешка:', err));
+                </code>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Проверка на връзката със сървъра
+        async function testServerConnection() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('server-check-result');
+            
+            resultDiv.innerHTML = '<div class="result">⏳ Проверявам връзката...</div>';
+            
+            try {
+                // Опитваме се да достъпим health endpoint или root
+                const healthUrl = `${apiBase}/api/health`;
+                console.log('[Server Check] Проверявам:', healthUrl);
+                
+                const response = await fetch(healthUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json().catch(() => ({ status: 'ok', message: 'Сървърът отговаря' }));
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+✅ СЪРВЪРЪТ РАБОТИ!
+
+URL: ${apiBase}
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+
+Можеш да продължиш с тестването на endpoints!
+                    </div>
+                `;
+            } catch (error) {
+                console.error('[Server Check] Грешка:', error);
+                
+                let solution = '';
+                if (error.message === 'Failed to fetch') {
+                    solution = `
+                    
+🔧 РЕШЕНИЯ:
+1. Провери дали сървърът работи:
+   • Локално: node server.js (в папката на проекта)
+   • Production: Провери дали https://mamafood.onrender.com е достъпен
+
+2. Ако отваряш HTML файл директно (file://), хоствай го на локален сървър:
+   • Python: python -m http.server 8000
+   • Node.js: npx http-server -p 8000
+   • След това отвори: http://localhost:8000/test-uik-api.html
+
+3. Провери конзолата на браузъра (F12) за повече детайли
+                    `;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ НЕ МОГА ДА СЕ СВЪРЖА СЪС СЪРВЪРА!
+
+URL: ${apiBase}
+Грешка: ${error.message}${solution}
+                    </div>
+                `;
+            }
+        }
+
+        // Показване на всички данни от localStorage
+        function showAllLocalStorage() {
+            try {
+                if (typeof(Storage) === "undefined") {
+                    alert('❌ localStorage не е поддържан в този браузър!');
+                    return;
+                }
+                
+                const allData = {};
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    keys.push(key);
+                    allData[key] = localStorage.getItem(key);
+                }
+                
+                const resultDiv = document.getElementById('verify-result');
+                if (Object.keys(allData).length === 0) {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+🔍 localStorage е празен!
+
+Няма данни в localStorage.
+Първо трябва да се регистрираш в основното приложение.
+                        </div>
+                    `;
+                } else {
+                    // Специално форматиране за UIK данни
+                    let formattedData = '🔍 Данни в localStorage:\n\n';
+                    formattedData += `Общо ключове: ${keys.length}\n\n`;
+                    formattedData += '═'.repeat(60) + '\n\n';
+                    
+                    // Показваме всеки ключ отделно за по-добра четимост
+                    keys.forEach((key, index) => {
+                        const value = allData[key];
+                        formattedData += `${index + 1}. 📌 ${key}:\n`;
+                        formattedData += '-'.repeat(60) + '\n';
+                        
+                        // Специално форматиране за device_serial (може да е дълъг)
+                        if (key === 'mamafood_device_serial') {
+                            formattedData += `Стойност:\n${value}\n\n`;
+                            formattedData += `Дължина: ${value.length} символа\n`;
+                            formattedData += `Първи 50 символа: ${value.substring(0, 50)}...\n`;
+                            formattedData += `Последни 20 символа: ...${value.substring(value.length - 20)}\n`;
+                        } else if (key === 'mamafood_uik') {
+                            formattedData += `Стойност:\n${value}\n\n`;
+                            formattedData += `Дължина: ${value.length} символа\n`;
+                            formattedData += `Формат: UUID\n`;
+                        } else if (key === 'mamafood_uik_pin_hash') {
+                            formattedData += `Стойност (първи 50 символа):\n${value.substring(0, 50)}...\n\n`;
+                            formattedData += `Дължина: ${value.length} символа\n`;
+                            formattedData += `Тип: Хеширан PIN (показва се само началото за сигурност)\n`;
+                        } else {
+                            // За други ключове показваме пълната стойност или първите 200 символа
+                            if (value.length > 200) {
+                                formattedData += `Стойност (първи 200 символа):\n${value.substring(0, 200)}...\n\n`;
+                                formattedData += `Дължина: ${value.length} символа (показва се само началото)\n`;
+                            } else {
+                                formattedData += `Стойност:\n${value}\n\n`;
+                                formattedData += `Дължина: ${value.length} символа\n`;
+                            }
+                        }
+                        formattedData += '\n' + '═'.repeat(60) + '\n\n';
+                    });
+                    
+                    // Добавяме и JSON формат за копиране
+                    formattedData += '\n--- JSON формат (за копиране) ---\n';
+                    formattedData += JSON.stringify(allData, null, 2);
+                    
+                    // Ескейпване на HTML специални символи
+                    const htmlFormatted = formattedData
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="result success" style="max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Courier New', monospace;">
+${htmlFormatted}
+                        </div>
+                    `;
+                    
+                    // Логиране в конзолата също
+                    console.log('[localStorage] Всички данни:', allData);
+                    console.log('[localStorage] Ключове:', keys);
+                    console.log('[localStorage] mamafood_device_serial:', allData['mamafood_device_serial']);
+                    console.log('[localStorage] mamafood_uik:', allData['mamafood_uik']);
+                }
+            } catch (error) {
+                console.error('[localStorage] Грешка:', error);
+                const resultDiv = document.getElementById('verify-result');
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ Грешка при достъп до localStorage:
+
+${error.message}
+
+Провери конзолата на браузъра (F12) за повече детайли.
+                    </div>
+                `;
+            }
+        }
+
+        // Генериране на device_serial (същата логика като в uik.js)
+        function generateDeviceSerial() {
+            try {
+                // Опит за използване на различни browser APIs за уникална идентификация
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('Device fingerprint', 2, 2);
+                
+                const fingerprint = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    new Date().getTimezoneOffset(),
+                    canvas.toDataURL()
+                ].join('|');
+                
+                // Хеширане на fingerprint
+                let hash = 0;
+                for (let i = 0; i < fingerprint.length; i++) {
+                    const char = fingerprint.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                const deviceId = Math.abs(hash).toString(36) + '_' + fingerprint.length.toString(36);
+                
+                return deviceId;
+            } catch (e) {
+                // Fallback: използваме timestamp + random
+                return 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+        }
+
+        // Вземане на device_serial от localStorage или генериране на нов
+        function getDeviceSerialFromStorage() {
+            try {
+                // Проверка дали localStorage е достъпен
+                if (typeof(Storage) === "undefined") {
+                    alert('❌ localStorage не е поддържан в този браузър!');
+                    return;
+                }
+                
+                // Опитваме се да вземем device_serial
+                let deviceSerial = localStorage.getItem('mamafood_device_serial');
+                const uik = localStorage.getItem('mamafood_uik');
+                
+                // Показваме всички налични ключове за дебъг
+                const allKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    allKeys.push(key);
+                }
+                
+                console.log('[localStorage] Всички ключове:', allKeys);
+                console.log('[localStorage] mamafood_device_serial:', deviceSerial);
+                console.log('[localStorage] mamafood_uik:', uik);
+                
+                if (deviceSerial) {
+                    // Намерен device_serial - копираме го
+                    document.getElementById('verify-device-serial').value = deviceSerial;
+                    
+                    // Автоматично попълваме и UIK ако е наличен
+                    if (uik && document.getElementById('verify-uik')) {
+                        document.getElementById('verify-uik').value = uik;
+                    }
+                    
+                    alert(`✅ Device Serial е копиран!\n\nDevice Serial: ${deviceSerial.substring(0, 50)}...\nДължина: ${deviceSerial.length} символа\n\n${uik ? '✅ UIK също е попълнен автоматично!' : '⚠️ UIK не е намерен в localStorage.'}`);
+                } else {
+                    // Няма device_serial - предлагаме да генерираме нов
+                    const shouldGenerate = confirm(
+                        '❌ Не е намерен device_serial в localStorage.\n\n' +
+                        'Налични ключове в localStorage:\n' +
+                        (allKeys.length > 0 ? allKeys.join(', ') : '(няма данни)') +
+                        '\n\n' +
+                        'Искаш ли да генерирам нов device_serial?\n' +
+                        '(Това ще го запази в localStorage за бъдеща употреба)'
+                    );
+                    
+                    if (shouldGenerate) {
+                        // Генериране на нов device_serial
+                        deviceSerial = generateDeviceSerial();
+                        
+                        // Запазване в localStorage
+                        localStorage.setItem('mamafood_device_serial', deviceSerial);
+                        
+                        // Попълване в полето
+                        document.getElementById('verify-device-serial').value = deviceSerial;
+                        
+                        alert(`✅ Нов device_serial е генериран и запазен!\n\nDevice Serial: ${deviceSerial}\nДължина: ${deviceSerial.length} символа\n\nСега можеш да го използваш за тестване.`);
+                        
+                        console.log('[localStorage] Генериран нов device_serial:', deviceSerial);
+                    } else {
+                        alert('Можеш да генерираш device_serial по всяко време чрез този бутон или да се регистрираш в основното приложение.');
+                    }
+                }
+            } catch (error) {
+                console.error('[localStorage] Грешка:', error);
+                alert(`❌ Грешка при достъп до localStorage:\n${error.message}\n\nВъзможна причина: CORS ограничения при file:// протокол.\nОпитай да хостваш файла на локален сървър.`);
+            }
+        }
+
+        // Тест на VERIFY endpoint
+        async function testVerify() {
+            const apiBase = document.getElementById('api-base').value;
+            const uik = document.getElementById('verify-uik').value.trim();
+            const deviceSerial = document.getElementById('verify-device-serial').value.trim();
+            const pin = document.getElementById('verify-pin').value;
+            const resultDiv = document.getElementById('verify-result');
+            
+            if (!uik || !deviceSerial || !pin) {
+                resultDiv.innerHTML = '<div class="result error">❌ Моля, попълнете всички полета!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="result">⏳ Изпращане на заявка...</div>';
+            
+            try {
+                const response = await fetch(`${apiBase}/api/uik/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        uik: uik,
+                        device_serial: deviceSerial,
+                        pin: pin
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+✅ УСПЕХ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+
+Детайли:
+• UIK: ${data.uik}
+• Име: ${data.name}
+• Съобщение: ${data.message}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+❌ ГРЕШКА!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('[VERIFY] Грешка:', error);
+                let errorMessage = error.message;
+                let additionalInfo = '';
+                
+                if (error.message === 'Failed to fetch') {
+                    additionalInfo = `
+                    
+🔍 ВЪЗМОЖНИ ПРИЧИНИ:
+• CORS проблем - сървърът не разрешава заявки от този origin
+• Сървърът не работи или не е достъпен
+• Мрежова грешка
+
+💡 РЕШЕНИЯ:
+1. Натисни бутона "🔍 Провери връзка със сървъра" по-горе
+2. Провери конзолата на браузъра (F12) за повече детайли
+                    `;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ ГРЕШКА ПРИ ИЗПРАЩАНЕ!
+
+${errorMessage}${additionalInfo}
+                    </div>
+                `;
+            }
+        }
+
+        // Тест на GET INFO endpoint
+        async function testGetInfo() {
+            const apiBase = document.getElementById('api-base').value;
+            const uik = document.getElementById('info-uik').value.trim();
+            const resultDiv = document.getElementById('info-result');
+            
+            if (!uik) {
+                resultDiv.innerHTML = '<div class="result error">❌ Моля, въведете UIK!</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="result">⏳ Изпращане на заявка...</div>';
+            
+            try {
+                const response = await fetch(`${apiBase}/api/uik/info/${uik}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+✅ УСПЕХ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+❌ ГРЕШКА!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ ГРЕШКА ПРИ ИЗПРАЩАНЕ!
+
+${error.message}
+                    </div>
+                `;
+                console.error('Error:', error);
+            }
+        }
+
+        // Тест на REGISTER endpoint
+        async function testRegister() {
+            const apiBase = document.getElementById('api-base').value;
+            const name = document.getElementById('reg-name').value.trim();
+            const personalId = document.getElementById('reg-personal-id').value.trim();
+            const address = document.getElementById('reg-address').value.trim();
+            const phone = document.getElementById('reg-phone').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const pin = document.getElementById('reg-pin').value;
+            const attachKeyword = document.getElementById('reg-attach-keyword').value.trim();
+            const resultDiv = document.getElementById('register-result');
+            
+            if (!name || !personalId || !pin) {
+                resultDiv.innerHTML = '<div class="result error">❌ Име, Личен ID и PIN са задължителни!</div>';
+                return;
+            }
+            
+            if (pin.length < 4) {
+                resultDiv.innerHTML = '<div class="result error">❌ PIN кодът трябва да е поне 4 символа!</div>';
+                return;
+            }
+            
+            // Вземане на device_serial от localStorage или генериране
+            let deviceSerial = localStorage.getItem('mamafood_device_serial');
+            if (!deviceSerial) {
+                // Генериране на временен device_serial за тест
+                deviceSerial = 'test_device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+            
+            resultDiv.innerHTML = '<div class="result">⏳ Изпращане на заявка...</div>';
+            
+            try {
+                const response = await fetch(`${apiBase}/api/uik/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        personal_id: personalId,
+                        address: address || null,
+                        phone: phone || null,
+                        email: email || null,
+                        pin: pin,
+                        attach_keyword: attachKeyword || null,
+                        device_serial: deviceSerial
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+✅ УСПЕШНА РЕГИСТРАЦИЯ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+
+Детайли:
+• UIK: ${data.uik}
+• Запази този UIK за тестване на други endpoints!
+                        </div>
+                    `;
+                    // Автоматично попълване на UIK в другите полета
+                    document.getElementById('verify-uik').value = data.uik;
+                    document.getElementById('info-uik').value = data.uik;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+❌ ГРЕШКА ПРИ РЕГИСТРАЦИЯ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ ГРЕШКА ПРИ ИЗПРАЩАНЕ!
+
+${error.message}
+                    </div>
+                `;
+                console.error('Error:', error);
+            }
+        }
+
+        // Тест на ATTACH endpoint
+        async function testAttach() {
+            const apiBase = document.getElementById('api-base').value;
+            const personalId = document.getElementById('attach-personal-id').value.trim();
+            const pin = document.getElementById('attach-pin').value;
+            const resultDiv = document.getElementById('attach-result');
+            
+            if (!personalId || !pin) {
+                resultDiv.innerHTML = '<div class="result error">❌ Личен ID и PIN са задължителни!</div>';
+                return;
+            }
+            
+            // Вземане на device_serial от localStorage или генериране
+            let deviceSerial = localStorage.getItem('mamafood_device_serial');
+            if (!deviceSerial) {
+                deviceSerial = 'test_device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+            
+            resultDiv.innerHTML = '<div class="result">⏳ Изпращане на заявка...</div>';
+            
+            try {
+                console.log('[ATTACH] Изпращане на заявка към:', `${apiBase}/api/uik/attach`);
+                console.log('[ATTACH] Request body:', { personal_id: personalId, device_serial: deviceSerial, pin: '***' });
+                
+                const response = await fetch(`${apiBase}/api/uik/attach`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        personal_id: personalId,
+                        device_serial: deviceSerial,
+                        pin: pin
+                    })
+                });
+                
+                console.log('[ATTACH] Response status:', response.status, response.statusText);
+                console.log('[ATTACH] Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                // Проверка дали отговорът е JSON
+                const contentType = response.headers.get('content-type');
+                let data;
+                
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    const text = await response.text();
+                    console.error('[ATTACH] Не-JSON отговор:', text);
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+❌ ГРЕШКА - Неочакван формат на отговор!
+
+Статус: ${response.status} ${response.statusText}
+Content-Type: ${contentType || 'неизвестен'}
+
+Отговор:
+${text.substring(0, 500)}
+                        </div>
+                    `;
+                    return;
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+✅ УСПЕШНО ПРИКАЧВАНЕ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+
+Детайли:
+• UIK: ${data.uik}
+• Запази този UIK за тестване на други endpoints!
+                        </div>
+                    `;
+                    // Автоматично попълване на UIK в другите полета
+                    document.getElementById('verify-uik').value = data.uik;
+                    document.getElementById('info-uik').value = data.uik;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result error">
+❌ ГРЕШКА ПРИ ПРИКАЧВАНЕ!
+
+Статус: ${response.status} ${response.statusText}
+
+Отговор:
+${JSON.stringify(data, null, 2)}
+
+Възможни причини:
+• Невалиден личен ID
+• Невалиден PIN код
+• Сървърът не може да се свърже с базата данни
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('[ATTACH] Грешка:', error);
+                let errorMessage = error.message;
+                let additionalInfo = '';
+                
+                // Проверка за CORS грешки
+                if (error.message === 'Failed to fetch') {
+                    additionalInfo = `
+                    
+🔍 ВЪЗМОЖНИ ПРИЧИНИ ЗА "Failed to fetch":
+• CORS проблем - сървърът не разрешава заявки от този origin
+• Сървърът не работи или не е достъпен
+• Мрежова грешка
+• SSL/TLS проблем (ако използваш HTTPS)
+
+💡 РЕШЕНИЯ:
+1. Провери дали сървърът работи: отвори ${apiBase}/api/health в браузъра
+2. Ако отваряш HTML файл директно (file://), опитай да го хостваш на локален сървър:
+   • Python: python -m http.server 8000
+   • Node.js: npx http-server -p 8000
+   • След това отвори: http://localhost:8000/test-uik-api.html
+3. Провери конзолата на браузъра за повече детайли (F12)
+                    `;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="result error">
+❌ ГРЕШКА ПРИ ИЗПРАЩАНЕ!
+
+${errorMessage}${additionalInfo}
+
+Детайли в конзолата (F12 → Console)
+                    </div>
+                `;
+            }
+        }
+
+        // Автоматично попълване на UIK и device_serial от localStorage при зареждане
+        window.addEventListener('DOMContentLoaded', function() {
+            try {
+                // Попълване на UIK
+                const uik = localStorage.getItem('mamafood_uik');
+                if (uik) {
+                    const verifyUikInput = document.getElementById('verify-uik');
+                    const infoUikInput = document.getElementById('info-uik');
+                    if (verifyUikInput) verifyUikInput.value = uik;
+                    if (infoUikInput) infoUikInput.value = uik;
+                    console.log('[Auto-fill] UIK попълнен автоматично:', uik);
+                }
+                
+                // Попълване на device_serial
+                const deviceSerial = localStorage.getItem('mamafood_device_serial');
+                if (deviceSerial) {
+                    const deviceSerialInput = document.getElementById('verify-device-serial');
+                    if (deviceSerialInput) {
+                        deviceSerialInput.value = deviceSerial;
+                        console.log('[Auto-fill] Device Serial попълнен автоматично:', deviceSerial.substring(0, 30) + '...');
+                    }
+                }
+                
+                // Показване на информация ако има данни
+                if (uik || deviceSerial) {
+                    console.log('[Auto-fill] Данни от localStorage са попълнени автоматично');
+                } else {
+                    console.log('[Auto-fill] Няма данни в localStorage. Трябва да се регистрираш първо.');
+                }
+            } catch (error) {
+                console.error('[Auto-fill] Грешка при автоматично попълване:', error);
+                // Не показваме alert тук, защото може да е досадно при всяко зареждане
+            }
+        });
+    </script>
+</body>
+</html>

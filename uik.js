@@ -8,6 +8,7 @@
 
 const UIK_STORAGE_KEY = 'mamafood_uik';
 const UIK_PIN_STORAGE_KEY = 'mamafood_uik_pin_hash'; // За локална проверка на PIN
+const UIK_PERSONAL_ID_STORAGE_KEY = 'mamafood_uik_personal_id'; // За запазване на personal_id
 
 // API Base URL - използва глобалния API_BASE ако е дефиниран, иначе определя автоматично
 // Това се изпълнява lazy, когато е необходимо, за да избегнем проблеми с инициализацията
@@ -136,8 +137,17 @@ function getUIK() {
 function clearUIK() {
     localStorage.removeItem(UIK_STORAGE_KEY);
     localStorage.removeItem(UIK_PIN_STORAGE_KEY);
+    localStorage.removeItem(UIK_PERSONAL_ID_STORAGE_KEY);
     // Изчистване на device_serial за да може устройството да се регистрира отново
     localStorage.removeItem('mamafood_device_serial');
+}
+
+/**
+ * Чете personal_id от локален storage
+ * @returns {string|null} personal_id стойност или null ако не съществува
+ */
+function getPersonalId() {
+    return localStorage.getItem(UIK_PERSONAL_ID_STORAGE_KEY);
 }
 
 /**
@@ -264,9 +274,14 @@ async function attachToUIK(personalId, pin) {
         
         const data = await response.json();
         
-        // Запазване на UIK
+        // Запазване на UIK и personal_id
         if (data.uik) {
             saveUIK(data.uik);
+        }
+        // Запазваме personal_id за бъдеща употреба
+        if (personalId) {
+            localStorage.setItem(UIK_PERSONAL_ID_STORAGE_KEY, personalId);
+            console.log('[attachToUIK] Personal_id запазен в localStorage');
         }
         
         return data;
@@ -285,7 +300,22 @@ async function attachToUIK(personalId, pin) {
  */
 async function verifyUIK(uik, pin) {
     try {
+        // Trim на UIK за да премахнем whitespace
+        const trimmedUIK = uik ? uik.trim() : null;
+        
+        if (!trimmedUIK) {
+            console.error('[verifyUIK] UIK е празен или null');
+            throw new Error('UIK не е намерен. Моля, регистрирайте се отново.');
+        }
+        
         const deviceSerial = getDeviceSerial();
+        
+        console.log('[verifyUIK] Изпращане на заявка:', {
+            uik: trimmedUIK.substring(0, 20) + '...',
+            uikLength: trimmedUIK.length,
+            deviceSerial: deviceSerial ? deviceSerial.substring(0, 20) + '...' : null,
+            hasPin: !!pin
+        });
         
         const response = await fetch(`${getUIKAPIBase()}/api/uik/verify`, {
             method: 'POST',
@@ -293,21 +323,25 @@ async function verifyUIK(uik, pin) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                uik: uik,
+                uik: trimmedUIK,
                 device_serial: deviceSerial,
                 pin: pin
             })
         });
         
+        console.log('[verifyUIK] Response status:', response.status, response.statusText);
+        
         if (!response.ok) {
-            const error = await response.json();
+            const error = await response.json().catch(() => ({ error: 'Неуспешен отговор от сървъра' }));
+            console.error('[verifyUIK] Грешка от сървъра:', error);
             throw new Error(error.error || 'Грешка при проверка');
         }
         
         const data = await response.json();
+        console.log('[verifyUIK] Успешен отговор:', data);
         return data;
     } catch (error) {
-        console.error('Error verifying UIK:', error);
+        console.error('[verifyUIK] Грешка при проверка:', error);
         throw error;
     }
 }
@@ -369,6 +403,7 @@ window.saveUIK = saveUIK;
 window.getUIK = getUIK;
 window.clearUIK = clearUIK;
 window.hasUIK = hasUIK;
+window.getPersonalId = getPersonalId;
 window.registerUIK = registerUIK;
 window.attachToUIK = attachToUIK;
 window.verifyUIK = verifyUIK;

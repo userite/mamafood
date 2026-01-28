@@ -294,8 +294,27 @@ function setupRegistrationForm() {
 function setupLoginForm() {
     const form = document.getElementById('uik-login-form');
     const errorDiv = document.getElementById('uik-login-error');
+    const usePersonalIdCheckbox = document.getElementById('uik-login-use-personal-id');
+    const personalIdGroup = document.getElementById('uik-login-personal-id-group');
+    const personalIdInput = document.getElementById('uik-login-personal-id');
     
     if (!form) return;
+    
+    // Toggle за използване на personal_id
+    if (usePersonalIdCheckbox && personalIdGroup) {
+        usePersonalIdCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                personalIdGroup.style.display = 'block';
+                if (personalIdInput) personalIdInput.required = true;
+            } else {
+                personalIdGroup.style.display = 'none';
+                if (personalIdInput) {
+                    personalIdInput.required = false;
+                    personalIdInput.value = '';
+                }
+            }
+        });
+    }
     
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -306,15 +325,24 @@ function setupLoginForm() {
         }
         
         const pin = document.getElementById('uik-login-pin').value;
+        const usePersonalId = usePersonalIdCheckbox ? usePersonalIdCheckbox.checked : false;
+        const personalId = usePersonalId && personalIdInput ? personalIdInput.value.trim() : null;
         const uik = getUIK();
-        
-        if (!uik) {
-            showError('uik-login-error', 'Не е намерен UIK. Моля, регистрирайте се отново.');
-            return;
-        }
         
         if (!pin) {
             showError('uik-login-error', 'Моля, въведете PIN код.');
+            return;
+        }
+        
+        // Ако използва personal_id, проверяваме дали е попълнен
+        if (usePersonalId && !personalId) {
+            showError('uik-login-error', 'Моля, въведете личен ID (ЕГН/БУЛСТАТ).');
+            return;
+        }
+        
+        // Ако не използва personal_id, проверяваме дали има UIK
+        if (!usePersonalId && !uik) {
+            showError('uik-login-error', 'Не е намерен UIK. Моля, регистрирайте се отново или използвайте личен ID.');
             return;
         }
         
@@ -326,13 +354,108 @@ function setupLoginForm() {
         }
         
         try {
-            const result = await verifyUIK(uik, pin);
-            if (result && result.success) {
-                // Успешна проверка
-                showUIKSuccess(result.name || 'Потребител', uik);
+            let result;
+            
+            if (usePersonalId && personalId) {
+                // Използваме ATTACH за да намерим UIK по personal_id + PIN
+                console.log('[UIK Login] Опит за вход с personal_id:', personalId.substring(0, 10) + '...');
+                result = await attachToUIK(personalId, pin);
+                if (result && result.uik) {
+                    // Успешно прикачване - получаваме UIK и показваме success
+                    const info = await getUIKInfo(result.uik);
+                    console.log('[UIK Login] Успешен вход чрез personal_id:', info.name);
+                    showUIKSuccess(info.name || 'Потребител', result.uik);
+                    return;
+                }
+            } else {
+                // Нормален вход с UIK + PIN
+                console.log('[UIK Login] Опит за вход с UIK:', uik ? uik.substring(0, 20) + '...' : 'null');
+                try {
+                    result = await verifyUIK(uik, pin);
+                    if (result && result.success) {
+                        // Успешна проверка
+                        console.log('[UIK Login] Успешен вход:', result.name);
+                        showUIKSuccess(result.name || 'Потребител', uik);
+                        return;
+                    }
+                } catch (verifyError) {
+                    // Ако verify не работи и има запазен personal_id, опитваме автоматично с него
+                    if (verifyError.message && verifyError.message.includes('Не е намерена регистрация')) {
+                        const savedPersonalId = typeof getPersonalId === 'function' ? getPersonalId() : null;
+                        if (savedPersonalId) {
+                            console.log('[UIK Login] UIK не е намерен, опитвам автоматично с personal_id:', savedPersonalId.substring(0, 10) + '...');
+                            try {
+                                const attachResult = await attachToUIK(savedPersonalId, pin);
+                                if (attachResult && attachResult.uik) {
+                                    // Успешно прикачване - получаваме UIK и показваме success
+                                    const info = await getUIKInfo(attachResult.uik);
+                                    console.log('[UIK Login] Успешен вход чрез автоматичен fallback с personal_id:', info.name);
+                                    showUIKSuccess(info.name || 'Потребител', attachResult.uik);
+                                    return;
+                                }
+                            } catch (attachError) {
+                                // Ако и attach не работи, показваме оригиналната грешка
+                                console.error('[UIK Login] Автоматичен fallback също не работи:', attachError);
+                                throw verifyError; // Хвърляме оригиналната грешка
+                            }
+                        }
+                    }
+                    // Ако няма personal_id или fallback не работи, хвърляме грешката
+                    throw verifyError;
+                }
             }
         } catch (error) {
-            showError('uik-login-error', error.message || 'Невалиден PIN код. Моля, опитайте отново.');
+            console.error('[UIK Login] Грешка при вход:', error);
+            
+            let errorMessage = error.message || 'Невалиден PIN код. Моля, опитайте отново.';
+            
+            // По-специфични съобщения за различни типове грешки
+            if (error.message && error.message.includes('Не е намерена регистрация')) {
+                const uikFromStorage = getUIK();
+                const savedPersonalId = typeof getPersonalId === 'function' ? getPersonalId() : null;
+                
+                errorMessage = 'Не е намерена регистрация с този UIK.\n\n' +
+                              `UIK в localStorage: ${uikFromStorage ? uikFromStorage.substring(0, 20) + '...' : 'няма'}\n` +
+                              `${savedPersonalId ? `Запазен personal_id: ${savedPersonalId.substring(0, 10) + '...'}\n` : ''}\n` +
+                              'Възможни причини:\n' +
+                              '• UIK в localStorage не съвпада с този в базата данни\n' +
+                              '• Регистрацията е изтрита от базата данни\n' +
+                              '• Проблем с базата данни\n\n' +
+                              'Решение:\n' +
+                              '1. Маркирай checkbox-а "Използвай личен ID вместо UIK" и въведи личен ID + PIN\n' +
+                              '2. Натисни RESET за да изчистиш локалните данни и регистрирай се отново\n' +
+                              '3. Използвай ATTACH за да се прикачиш към съществуващ акаунт\n\n' +
+                              '💡 Ако знаеш личния си ID и PIN, може да използваш checkbox-а по-горе.';
+                              
+                // Показваме бутон за бързо прикачване
+                const errorDiv = document.getElementById('uik-login-error');
+                if (errorDiv) {
+                    errorDiv.innerHTML = `
+                        <div style="margin-bottom: 1rem;">
+                            ${errorMessage.replace(/\n/g, '<br>')}
+                        </div>
+                        ${savedPersonalId ? `
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('uik-login-use-personal-id').checked = true; document.getElementById('uik-login-use-personal-id').dispatchEvent(new Event('change')); document.getElementById('uik-login-personal-id').value = '${savedPersonalId}';" style="width: 100%; margin-top: 0.5rem;">
+                            🔄 Използвай запазения личен ID
+                        </button>
+                        ` : ''}
+                        <button type="button" class="btn btn-secondary" onclick="showUIKRegistration(); document.getElementById('uik-attach-mode').checked = true; document.getElementById('uik-attach-mode').dispatchEvent(new Event('change'));" style="width: 100%; margin-top: 0.5rem;">
+                            🔗 Използвай ATTACH за прикачване
+                        </button>
+                    `;
+                } else {
+                    showError('uik-login-error', errorMessage);
+                }
+                return; // Не показваме стандартното съобщение
+            } else if (error.message && error.message.includes('Устройството не е регистрирано')) {
+                errorMessage = 'Устройството не е регистрирано за този UIK.\n\n' +
+                              'Възможни причини:\n' +
+                              '• Устройството не е прикачено към този акаунт\n' +
+                              '• Device serial е променен\n\n' +
+                              'Решение: Използвайте ATTACH за да прикачите устройството към акаунта.';
+            }
+            
+            showError('uik-login-error', errorMessage);
             
             // Реактивиране на бутона
             if (submitBtn) {
@@ -381,30 +504,23 @@ function startApp() {
 
 /**
  * Показва диалог за RESET
+ * Изтрива само локалните данни и рестартира приложението от регистрация/attach
+ * НЕ пипа базата данни
  */
 async function showUIKReset() {
-    const uik = getUIK();
-    const message = 'Сигурни ли сте, че искате да изтриете всички UIK данни?\n\n' +
+    const message = 'Сигурни ли сте, че искате да изтриете локалните UIK данни?\n\n' +
                    'Това ще:\n' +
                    '- Изтрие локалните UIK данни\n' +
                    '- Изчисти серийния номер на устройството\n' +
-                   (uik ? '- Изтрие записа от базата данни\n' : '') +
-                   '- Изисква нова регистрация';
+                   '- Изисква нова регистрация или attach към съществуващ акаунт\n\n' +
+                   'Забележка: Данните в базата данни НЕ ще бъдат засегнати.';
     
     if (confirm(message)) {
-        // Ако има UIK, опитваме се да изтрием записа от базата данни
-        if (uik && typeof deleteUIKFromServer === 'function') {
-            try {
-                await deleteUIKFromServer(uik);
-                console.log('[RESET] UIK запис изтрит от базата данни');
-            } catch (error) {
-                console.warn('[RESET] Неуспешно изтриване от базата данни:', error.message);
-                // Продължаваме дори и да не успее изтриването от базата
-            }
-        }
-        
-        // Изчистване на локалните данни
+        // Изчистване само на локалните данни (НЕ пипаме базата данни)
         clearUIK();
+        console.log('[RESET] Локалните UIK данни са изтрити. Приложението ще рестартира от регистрация.');
+        
+        // Показваме екрана за регистрация (може да се избере регистрация или attach)
         showUIKRegistration();
     }
 }

@@ -142,10 +142,27 @@ async function renderURLList() {
             urlButton.type = 'button';
             urlButton.className = 'btn btn-primary';
             urlButton.style.cssText = 'flex: 1; text-align: left; justify-content: flex-start;';
-            urlButton.innerHTML = `<strong>${escapeHtml(url.name)}</strong><br><small style="opacity: 0.8;">${escapeHtml(url.url)}</small>`;
-            urlButton.onclick = () => {
-                window.open(url.url, '_blank');
-            };
+            
+            // Проверка дали е специален URL за стартиране на приложението
+            const isAppStart = url.url === 'app://start' || url.url === 'app://user-platform' || url.url.startsWith('javascript:');
+            
+            if (isAppStart) {
+                // За приложението показваме по-различен текст
+                urlButton.innerHTML = `<strong>${escapeHtml(url.name)}</strong><br><small style="opacity: 0.8;">Отваря приложението в нов tab</small>`;
+                urlButton.onclick = () => {
+                    // Отваряне на приложението в нов tab
+                    const currentUrl = window.location.origin + window.location.pathname;
+                    // Премахваме query параметрите и hash за чист URL
+                    const cleanUrl = currentUrl.split('?')[0].split('#')[0];
+                    window.open(cleanUrl, '_blank');
+                };
+            } else {
+                // Нормален URL - отваряме в нов прозорец
+                urlButton.innerHTML = `<strong>${escapeHtml(url.name)}</strong><br><small style="opacity: 0.8;">${escapeHtml(url.url)}</small>`;
+                urlButton.onclick = () => {
+                    window.open(url.url, '_blank');
+                };
+            }
             
             const deleteButton = document.createElement('button');
             deleteButton.type = 'button';
@@ -249,6 +266,55 @@ async function migrateURLsFromLocalStorage() {
 }
 
 /**
+ * Осигурява че "User Platform" URL съществува (добавя го ако липсва)
+ */
+async function ensureUserPlatformURL() {
+    try {
+        const uik = getUIK();
+        if (!uik) {
+            return; // Няма UIK, не можем да добавим URL
+        }
+        
+        const urls = await loadURLs();
+        
+        // Проверяваме дали вече има "MAMAFOOD" URL
+        const hasUserPlatform = urls.some(url => 
+            url.name === 'MAMAFOOD' || 
+            url.name === 'User Platform' ||
+            url.url === 'app://start' || 
+            url.url === 'app://user-platform'
+        );
+        
+        if (!hasUserPlatform) {
+            // Добавяме "MAMAFOOD" URL автоматично
+            try {
+                await addURL('MAMAFOOD', 'app://start');
+                console.log('[URL Manager] Автоматично добавен "MAMAFOOD" URL');
+            } catch (error) {
+                console.warn('[URL Manager] Неуспешно автоматично добавяне на "MAMAFOOD" URL:', error);
+                // Не показваме грешка на потребителя, защото това е автоматична операция
+            }
+        } else {
+            // Ако има стар "User Platform", го обновяваме на "MAMAFOOD"
+            const oldUserPlatform = urls.find(url => url.name === 'User Platform');
+            if (oldUserPlatform) {
+                try {
+                    // Изтриваме стария и добавяме новия
+                    await deleteURL(oldUserPlatform.id);
+                    await addURL('MAMAFOOD', 'app://start');
+                    console.log('[URL Manager] Обновен "User Platform" на "MAMAFOOD"');
+                } catch (error) {
+                    console.warn('[URL Manager] Неуспешно обновяване на "User Platform":', error);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('[URL Manager] Грешка при проверка за "User Platform" URL:', error);
+        // Не показваме грешка, защото това не е критично
+    }
+}
+
+/**
  * Показва URL Manager екрана
  */
 async function showURLManager() {
@@ -258,6 +324,9 @@ async function showURLManager() {
     if (urlManagerScreen) {
         urlManagerScreen.style.display = 'block';
         if (successScreen) successScreen.style.display = 'none';
+        
+        // Осигуряваме че "User Platform" URL съществува
+        await ensureUserPlatformURL();
         
         // Опитваме се да мигрираме стари URL-и (ако има такива)
         await migrateURLsFromLocalStorage();

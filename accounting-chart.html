@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Счетоводен Сметкоплан</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.secondary {
+            background: #2196F3;
+        }
+        button.secondary:hover {
+            background: #0b7dda;
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .tree-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 5px;
+            border: 1px solid #e0e0e0;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .tree-item {
+            margin: 2px 0;
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tree-item:hover {
+            background: #f0f0f0;
+        }
+        .tree-item.selected {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+        .tree-indent {
+            display: inline-block;
+            width: 20px;
+        }
+        .tree-toggle {
+            cursor: pointer;
+            user-select: none;
+            font-weight: bold;
+            width: 20px;
+            text-align: center;
+        }
+        .tree-toggle:hover {
+            color: #4CAF50;
+        }
+        .tree-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .tree-uik-id {
+            font-size: 10px;
+            color: #666;
+            min-width: 280px;
+            font-family: 'Courier New', monospace;
+            font-weight: normal;
+            padding: 3px 8px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            border: 1px solid #d0d0d0;
+            cursor: pointer;
+            user-select: all;
+            transition: background 0.2s;
+        }
+        .tree-uik-id:hover {
+            background: #e0e0e0;
+            border-color: #4CAF50;
+        }
+        .tree-code {
+            font-weight: bold;
+            color: #333;
+            min-width: 100px;
+            font-family: 'Courier New', monospace;
+        }
+        .tree-name {
+            flex: 1;
+            color: #555;
+        }
+        .tree-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .tree-actions button {
+            padding: 3px 8px;
+            font-size: 11px;
+        }
+        .form-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .form-container h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .message {
+            margin: 15px 0;
+            padding: 12px;
+            border-radius: 4px;
+            display: none;
+        }
+        .message.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            display: block;
+        }
+        .message.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            display: block;
+        }
+        .info {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .empty-tree {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .api-config {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 4px;
+        }
+        .raw-data-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+            display: none;
+        }
+        .raw-data-container h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .raw-data {
+            background: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Счетоводен Сметкоплан</h1>
+        
+        <div class="api-config">
+            <label for="api-base">API Base URL:</label>
+            <select id="api-base" onchange="updateAPIBase()">
+                <option value="http://localhost:3000">http://localhost:3000 (Локално)</option>
+                <option value="https://mamafood.onrender.com">https://mamafood.onrender.com (Production)</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <button onclick="loadTree()">🔄 Презареди</button>
+            <button class="secondary" onclick="showAddForm()">➕ Добави нов запис</button>
+            <button class="secondary" onclick="expandAll()">📂 Разгъни всички</button>
+            <button class="secondary" onclick="collapseAll()">📁 Сгъни всички</button>
+            <button class="secondary" onclick="showRawData()">📋 Покажи данните (JSON)</button>
+            <button class="secondary" onclick="showImportDialog()">📥 Импорт от JSON</button>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <div class="tree-container" id="tree-container">
+            <div class="loading">Зареждане...</div>
+        </div>
+
+        <div class="raw-data-container" id="raw-data-container">
+            <h3>📋 Данни от таблицата accounting_chart</h3>
+            <div class="raw-data" id="raw-data"></div>
+            <button class="secondary" onclick="hideRawData()" style="margin-top: 10px;">❌ Затвори</button>
+        </div>
+
+        <div class="form-container" id="import-container" style="display: none;">
+            <h2>📥 Импорт на сметкоплан от JSON</h2>
+            <p style="color: #666; margin-bottom: 15px;">
+                Поставете JSON данни във формат: <code>[{"id":1,"code":"101","name":"Име","idfat":null}, ...]</code><br>
+                <strong>Внимание:</strong> Това ще изтрие всички съществуващи записи и ще ги замени с новите!
+            </p>
+            <textarea id="import-json" rows="15" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px;" placeholder='[{"id":1,"code":"101","name":"Име","idfat":null}, ...]'></textarea>
+            <div class="form-actions" style="margin-top: 15px;">
+                <button onclick="importJSON()">💾 Импортирай</button>
+                <button type="button" class="secondary" onclick="hideImportDialog()">❌ Отказ</button>
+            </div>
+            <div id="import-result" style="margin-top: 15px;"></div>
+        </div>
+
+        <div class="form-container" id="form-container" style="display: none;">
+            <h2 id="form-title">Добави нов запис</h2>
+            <form id="accounting-form" onsubmit="handleSubmit(event)">
+                <input type="hidden" id="form-uik-id" value="">
+                
+                <div class="form-group">
+                    <label for="form-parent">Parent запис (опционално):</label>
+                    <select id="form-parent">
+                        <option value="">-- Без parent (root ниво) --</option>
+                    </select>
+                    <small style="color: #666;">Изберете parent запис за създаване на под-запис</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-code">Code *:</label>
+                    <input type="text" id="form-code" required placeholder="Напр. 100, 200, 300">
+                    <small style="color: #666;">Уникален код на сметката</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-name">Name *:</label>
+                    <input type="text" id="form-name" required placeholder="Наименование на сметката">
+                    <small style="color: #666;">Описание/име на сметката</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="submit-btn">💾 Запази</button>
+                    <button type="button" class="secondary" onclick="hideForm()">❌ Отказ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="accounting-chart.js"></script>
+</body>
+</html>
