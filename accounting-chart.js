@@ -3,21 +3,128 @@
 // Управление на счетоводен сметкоплан с йерархична структура
 // ============================================
 
-let API_BASE = 'http://localhost:3000';
+// Автоматично определяне на API_BASE според hostname ПРЕДИ всичко друго
+(function() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net')) {
+        window.API_BASE_INIT = 'https://mamafood.onrender.com';
+    } else {
+        window.API_BASE_INIT = 'http://localhost:3000';
+    }
+})();
+
+let API_BASE = (typeof window !== 'undefined' && window.API_BASE_INIT) ? window.API_BASE_INIT : 'http://localhost:3000';
 let treeData = [];
 let expandedNodes = new Set();
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', function() {
-    updateAPIBase();
+    // Автоматично избиране на production URL ако сме на production домейн (същото като test-uik-api.html)
+    const hostname = window.location.hostname;
+    const apiBaseSelect = document.getElementById('api-base');
+    const apiConfigDiv = document.getElementById('api-config');
+    
+    console.log('[Accounting Chart] Инициализация - Hostname:', hostname);
+    console.log('[Accounting Chart] Инициализация - Origin:', window.location.origin);
+    console.log('[Accounting Chart] Инициализация - Първоначален API_BASE:', API_BASE);
+    
+    // Определяне на правилния API URL ПРЕДИ всичко друго
+    if (hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net')) {
+        // На production - използвай production API и скрий combobox-а
+        API_BASE = 'https://mamafood.onrender.com';
+        console.log('[Accounting Chart] Production домейн открит, използвам production API:', API_BASE);
+        
+        if (apiBaseSelect) {
+            apiBaseSelect.value = API_BASE;
+            console.log('[Accounting Chart] Select стойност зададена на:', apiBaseSelect.value);
+        }
+        if (apiConfigDiv) {
+            apiConfigDiv.style.display = 'none'; // Скриване на combobox-а на production
+        }
+    } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // На localhost - използвай локален API и покажи combobox-а
+        API_BASE = 'http://localhost:3000';
+        console.log('[Accounting Chart] Локален домейн, използвам локален API:', API_BASE);
+        
+        if (apiBaseSelect) {
+            apiBaseSelect.value = API_BASE;
+        }
+        if (apiConfigDiv) {
+            apiConfigDiv.style.display = 'block'; // Показване на combobox-а на localhost
+        }
+    } else {
+        // Други домейни - покажи combobox-а за избор и използвай стойността от select-а
+        if (apiConfigDiv) {
+            apiConfigDiv.style.display = 'block';
+        }
+        if (apiBaseSelect && apiBaseSelect.value) {
+            API_BASE = apiBaseSelect.value;
+        } else {
+            API_BASE = 'https://mamafood.onrender.com'; // Fallback към production
+        }
+        console.log('[Accounting Chart] Друг домейн, използвам:', API_BASE);
+    }
+    
+    // ФИНАЛНА ПРОВЕРКА - гарантираме че API_BASE е правилен ПРЕДИ loadTree()
+    // Ако сме на production но API_BASE все още е localhost, принудително го смени
+    const isProduction = hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net');
+    
+    if (isProduction && (API_BASE === 'http://localhost:3000' || !API_BASE || API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1'))) {
+        console.log('[Accounting Chart] ⚠️ КРИТИЧНО: API_BASE е localhost на production! Принудителна корекция!');
+        console.log('[Accounting Chart] ⚠️ Стара стойност:', API_BASE);
+        API_BASE = 'https://mamafood.onrender.com';
+        console.log('[Accounting Chart] ✅ Нова стойност:', API_BASE);
+        
+        if (apiBaseSelect) {
+            apiBaseSelect.value = API_BASE;
+            console.log('[Accounting Chart] ✅ Select синхронизиран:', apiBaseSelect.value);
+        }
+    }
+    
+    // НЕ извикваме updateAPIBase() тук, защото вече сме задали правилната стойност
+    // updateAPIBase() може да върне старата стойност от select-а
+    
+    // Финален assert - ако все още е localhost на production, нещо е много зле
+    if (isProduction && API_BASE.includes('localhost')) {
+        console.error('[Accounting Chart] ❌❌❌ КРИТИЧНА ГРЕШКА: API_BASE все още е localhost след всички проверки!');
+        API_BASE = 'https://mamafood.onrender.com';
+        if (apiBaseSelect) apiBaseSelect.value = API_BASE;
+    }
+    
+    console.log('[Accounting Chart] ✅ ФИНАЛЕН API Base:', API_BASE);
+    console.log('[Accounting Chart] ✅ Hostname:', hostname);
+    console.log('[Accounting Chart] ✅ Is Production:', isProduction);
+    console.log('[Accounting Chart] ✅ Select value:', apiBaseSelect ? apiBaseSelect.value : 'N/A');
+    
+    // Зареждане на дървото
     loadTree();
 });
 
 // Обновяване на API base URL
 function updateAPIBase() {
     const select = document.getElementById('api-base');
-    API_BASE = select.value;
-    console.log('[Accounting Chart] API Base:', API_BASE);
+    const hostname = window.location.hostname;
+    
+    if (select && select.value) {
+        // Проверка: ако сме на production но select има localhost, принудително смени
+        if ((hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net')) 
+            && select.value === 'http://localhost:3000') {
+            console.log('[Accounting Chart] ⚠️ updateAPIBase: Select има localhost на production, принудително смяна!');
+            select.value = 'https://mamafood.onrender.com';
+            API_BASE = 'https://mamafood.onrender.com';
+        } else {
+            API_BASE = select.value;
+        }
+        console.log('[Accounting Chart] API Base (от select):', API_BASE);
+    } else {
+        // Fallback: автоматично определяне ако select не съществува
+        if (hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net')) {
+            API_BASE = 'https://mamafood.onrender.com';
+        } else {
+            API_BASE = 'http://localhost:3000';
+        }
+        console.log('[Accounting Chart] API Base (auto-detected):', API_BASE);
+    }
 }
 
 // Зареждане на дървото от API
@@ -26,10 +133,24 @@ async function loadTree() {
     container.innerHTML = '<div class="loading">Зареждане...</div>';
     
     try {
-        const response = await fetch(`${API_BASE}/api/accounting-chart`);
+        const url = `${API_BASE}/api/accounting-chart`;
+        console.log('[Accounting Chart] Зареждане от:', url);
+        console.log('[Accounting Chart] Текущ hostname:', window.location.hostname);
+        console.log('[Accounting Chart] Текущ origin:', window.location.origin);
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('[Accounting Chart] Response status:', response.status, response.statusText);
         
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorText = await response.text();
+            console.error('[Accounting Chart] Error response:', errorText);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}. ${errorText}`);
         }
         
         treeData = await response.json();
@@ -38,8 +159,20 @@ async function loadTree() {
         renderTree();
     } catch (error) {
         console.error('[Accounting Chart] Грешка при зареждане:', error);
-        container.innerHTML = `<div class="message error">❌ Грешка при зареждане: ${error.message}</div>`;
-        showMessage('Грешка при зареждане на данните', 'error');
+        console.error('[Accounting Chart] Error details:', {
+            message: error.message,
+            stack: error.stack,
+            API_BASE: API_BASE,
+            hostname: window.location.hostname
+        });
+        
+        let errorMessage = error.message;
+        if (error.message === 'Failed to fetch') {
+            errorMessage = `Не може да се свърже със сървъра на ${API_BASE}. Провери дали сървърът работи и дали URL-ът е правилен.`;
+        }
+        
+        container.innerHTML = `<div class="message error">❌ Грешка при зареждане: ${errorMessage}</div>`;
+        showMessage(`Грешка при зареждане на данните: ${errorMessage}`, 'error');
     }
 }
 

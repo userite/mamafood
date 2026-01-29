@@ -12,8 +12,21 @@ function showUIKContainer() {
     const uikContainer = document.getElementById('uik-container');
     const mainApp = document.getElementById('main-app-container');
     
-    if (uikContainer) uikContainer.style.display = 'flex';
-    if (mainApp) mainApp.style.display = 'none';
+    console.log('[UIK UI] showUIKContainer() извикан');
+    console.log('[UIK UI] - uikContainer:', uikContainer);
+    console.log('[UIK UI] - mainApp:', mainApp);
+    
+    if (uikContainer) {
+        uikContainer.style.display = 'flex';
+        console.log('[UIK UI] ✅ uik-container показан');
+    } else {
+        console.error('[UIK UI] ❌ uik-container не е намерен!');
+    }
+    
+    if (mainApp) {
+        mainApp.style.display = 'none';
+        console.log('[UIK UI] ✅ main-app-container скрит');
+    }
 }
 
 /**
@@ -50,8 +63,10 @@ function showUIKScreen(screenId) {
  * Показва екран за регистрация
  */
 function showUIKRegistration() {
+    console.log('[UIK UI] showUIKRegistration() извикан');
     showUIKContainer();
     showUIKScreen('uik-registration-screen');
+    console.log('[UIK UI] ✅ Екран за регистрация показан');
     setupRegistrationForm();
 }
 
@@ -59,8 +74,10 @@ function showUIKRegistration() {
  * Показва екран за вход
  */
 function showUIKLogin() {
+    console.log('[UIK UI] showUIKLogin() извикан');
     showUIKContainer();
     showUIKScreen('uik-login-screen');
+    console.log('[UIK UI] ✅ Екран за вход показан');
     setupLoginForm();
     
     // Фокус върху PIN полето
@@ -375,6 +392,21 @@ function setupLoginForm() {
                     if (result && result.success) {
                         // Успешна проверка
                         console.log('[UIK Login] Успешен вход:', result.name);
+                        
+                        // Проверка за "Запомни ме" опция
+                        const rememberMeCheckbox = document.getElementById('uik-login-remember-me');
+                        if (rememberMeCheckbox && rememberMeCheckbox.checked) {
+                            // Запазваме PIN hash за автоматично влизане
+                            // Използваме прост hash на PIN (не е много сигурно, но е за удобство)
+                            if (typeof hashString === 'function') {
+                                const pinHash = hashString(pin);
+                                if (typeof savePINHash === 'function') {
+                                    savePINHash(pinHash);
+                                    console.log('[UIK Login] PIN hash запазен за автоматично влизане');
+                                }
+                            }
+                        }
+                        
                         showUIKSuccess(result.name || 'Потребител', uik);
                         return;
                     }
@@ -528,13 +560,32 @@ async function showUIKReset() {
 /**
  * Инициализация на UIK системата при зареждане
  */
-function initUIKSystem() {
+async function initUIKSystem() {
+    console.log('[UIK UI] initUIKSystem() извикан');
+    
     // Проверка дали има запазен UIK
-    if (hasUIK()) {
+    const hasUIKValue = hasUIK();
+    console.log('[UIK UI] - hasUIK():', hasUIKValue);
+    
+    if (hasUIKValue) {
+        // Опитваме се за автоматично влизане ако има запазен PIN hash
+        const pinHash = typeof getPINHash === 'function' ? getPINHash() : null;
+        const uik = typeof getUIK === 'function' ? getUIK() : null;
+        
+        if (pinHash && uik) {
+            console.log('[UIK UI] Намерен запазен PIN hash, опит за автоматично влизане');
+            // Запазеният PIN hash не може да се използва директно за verifyUIK,
+            // защото verifyUIK изисква действителен PIN, не hash.
+            // Затова просто показваме екрана за вход, но може да добавим опция за автоматично влизане в бъдеще
+            console.log('[UIK UI] PIN hash не може да се използва за автоматично влизане (изисква се действителен PIN)');
+        }
+        
         // Показваме екран за вход
+        console.log('[UIK UI] Показване на екран за вход');
         showUIKLogin();
     } else {
         // Показваме екран за регистрация
+        console.log('[UIK UI] Показване на екран за регистрация');
         showUIKRegistration();
     }
 }

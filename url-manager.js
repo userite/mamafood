@@ -149,12 +149,70 @@ async function renderURLList() {
             if (isAppStart) {
                 // За приложението показваме по-различен текст
                 urlButton.innerHTML = `<strong>${escapeHtml(url.name)}</strong><br><small style="opacity: 0.8;">Отваря приложението в нов tab</small>`;
-                urlButton.onclick = () => {
-                    // Отваряне на приложението в нов tab
-                    const currentUrl = window.location.origin + window.location.pathname;
-                    // Премахваме query параметрите и hash за чист URL
-                    const cleanUrl = currentUrl.split('?')[0].split('#')[0];
-                    window.open(cleanUrl, '_blank');
+                
+                urlButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Отваряне на приложението (index.html) в нов tab
+                    let appUrl;
+                    
+                    // Определяне на правилния път според текущата локация
+                    const currentPath = window.location.pathname;
+                    const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+                    
+                    if (window.location.protocol === 'file:') {
+                        // За file:// протокол - използваме относителен път от текущата директория
+                        appUrl = currentDir + 'index.html';
+                    } else {
+                        // За http/https - използваме абсолютен път от origin
+                        // Премахваме всички query параметри и hash за чист URL
+                        appUrl = window.location.origin + '/index.html';
+                    }
+                    
+                    console.log('[URL Manager] Отваряне на приложението');
+                    console.log('[URL Manager] - URL:', appUrl);
+                    console.log('[URL Manager] - Текуща локация:', window.location.href);
+                    console.log('[URL Manager] - Origin:', window.location.origin);
+                    console.log('[URL Manager] - Pathname:', window.location.pathname);
+                    
+                    // Опитваме се с window.open() първо (ако работи)
+                    try {
+                        const newWindow = window.open(appUrl, '_blank', 'noopener,noreferrer');
+                        
+                        if (newWindow && !newWindow.closed) {
+                            console.log('[URL Manager] ✅ window.open() успешен');
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('[URL Manager] window.open() неуспешен, опитвам с <a> таг:', error);
+                    }
+                    
+                    // Ако window.open() не работи, използваме <a> таг
+                    const link = document.createElement('a');
+                    link.href = appUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    
+                    // Добавяме линка в DOM, кликваме го, и след това го премахваме
+                    document.body.appendChild(link);
+                    
+                    // Проверка дали линкът е правилно настроен
+                    console.log('[URL Manager] - Link href:', link.href);
+                    console.log('[URL Manager] - Link target:', link.target);
+                    console.log('[URL Manager] - Link complete href:', link.href);
+                    
+                    // Използваме директно click() метода
+                    link.click();
+                    
+                    // Изчакваме малко преди да премахнем линка
+                    setTimeout(() => {
+                        if (document.body.contains(link)) {
+                            document.body.removeChild(link);
+                        }
+                    }, 500);
+                    
+                    console.log('[URL Manager] ✅ Линк активиран за отваряне в нов таб');
                 };
             } else {
                 // Нормален URL - отваряме в нов прозорец
@@ -267,51 +325,13 @@ async function migrateURLsFromLocalStorage() {
 
 /**
  * Осигурява че "User Platform" URL съществува (добавя го ако липсва)
+ * ПРЕМАХНАТО: MAMAFOOD вече не се добавя автоматично - потребителят може да го добави ръчно
  */
 async function ensureUserPlatformURL() {
-    try {
-        const uik = getUIK();
-        if (!uik) {
-            return; // Няма UIK, не можем да добавим URL
-        }
-        
-        const urls = await loadURLs();
-        
-        // Проверяваме дали вече има "MAMAFOOD" URL
-        const hasUserPlatform = urls.some(url => 
-            url.name === 'MAMAFOOD' || 
-            url.name === 'User Platform' ||
-            url.url === 'app://start' || 
-            url.url === 'app://user-platform'
-        );
-        
-        if (!hasUserPlatform) {
-            // Добавяме "MAMAFOOD" URL автоматично
-            try {
-                await addURL('MAMAFOOD', 'app://start');
-                console.log('[URL Manager] Автоматично добавен "MAMAFOOD" URL');
-            } catch (error) {
-                console.warn('[URL Manager] Неуспешно автоматично добавяне на "MAMAFOOD" URL:', error);
-                // Не показваме грешка на потребителя, защото това е автоматична операция
-            }
-        } else {
-            // Ако има стар "User Platform", го обновяваме на "MAMAFOOD"
-            const oldUserPlatform = urls.find(url => url.name === 'User Platform');
-            if (oldUserPlatform) {
-                try {
-                    // Изтриваме стария и добавяме новия
-                    await deleteURL(oldUserPlatform.id);
-                    await addURL('MAMAFOOD', 'app://start');
-                    console.log('[URL Manager] Обновен "User Platform" на "MAMAFOOD"');
-                } catch (error) {
-                    console.warn('[URL Manager] Неуспешно обновяване на "User Platform":', error);
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('[URL Manager] Грешка при проверка за "User Platform" URL:', error);
-        // Не показваме грешка, защото това не е критично
-    }
+    // Празна функция - не добавяме автоматично "MAMAFOOD" URL
+    // Потребителят може да добави MAMAFOOD ръчно чрез URL Manager формата
+    console.log('[URL Manager] ensureUserPlatformURL() извикан, но автоматичното добавяне е премахнато');
+    return;
 }
 
 /**
@@ -325,8 +345,8 @@ async function showURLManager() {
         urlManagerScreen.style.display = 'block';
         if (successScreen) successScreen.style.display = 'none';
         
-        // Осигуряваме че "User Platform" URL съществува
-        await ensureUserPlatformURL();
+        // ПРЕМАХНАТО: Не добавяме автоматично "MAMAFOOD" URL
+        // await ensureUserPlatformURL();
         
         // Опитваме се да мигрираме стари URL-и (ако има такива)
         await migrateURLsFromLocalStorage();
@@ -387,14 +407,19 @@ function setupURLForm() {
         }
         
         // Валидация на URL формат
-        try {
-            new URL(url);
-        } catch (e) {
-            if (errorDiv) {
-                errorDiv.textContent = 'Моля, въведете валиден URL адрес (напр. https://billa.bg)';
-                errorDiv.style.display = 'block';
+        // Разрешаваме специални URL-и като app://start за MAMAFOOD приложението
+        const isSpecialURL = url === 'app://start' || url === 'app://user-platform' || url.startsWith('app://');
+        
+        if (!isSpecialURL) {
+            try {
+                new URL(url);
+            } catch (e) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'Моля, въведете валиден URL адрес (напр. https://billa.bg) или app://start за MAMAFOOD';
+                    errorDiv.style.display = 'block';
+                }
+                return;
             }
-            return;
         }
         
         // Деактивиране на бутона

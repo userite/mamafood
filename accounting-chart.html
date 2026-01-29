@@ -254,11 +254,11 @@
     <div class="container">
         <h1>📊 Счетоводен Сметкоплан</h1>
         
-        <div class="api-config">
+        <div class="api-config" id="api-config" style="display: none;">
             <label for="api-base">API Base URL:</label>
             <select id="api-base" onchange="updateAPIBase()">
-                <option value="http://localhost:3000">http://localhost:3000 (Локално)</option>
-                <option value="https://mamafood.onrender.com">https://mamafood.onrender.com (Production)</option>
+                <option value="http://localhost:3000" id="api-option-local">http://localhost:3000 (Локално)</option>
+                <option value="https://mamafood.onrender.com" id="api-option-production">https://mamafood.onrender.com (Production)</option>
             </select>
         </div>
 

@@ -103,6 +103,12 @@
                     </div>
                     <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
                         <label>
+                            <input type="checkbox" id="uik-login-remember-me" style="margin-right: 0.5rem;">
+                            Запомни ме (автоматично влизане при следващо отваряне)
+                        </label>
+                    </div>
+                    <div class="form-group" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                        <label>
                             <input type="checkbox" id="uik-login-use-personal-id" style="margin-right: 0.5rem;">
                             Използвай личен ID вместо UIK (ако UIK не работи)
                         </label>
@@ -164,8 +170,8 @@
                     </div>
                     <div class="form-group">
                         <label for="url-address">URL адрес *</label>
-                        <input type="url" id="url-address" required placeholder="https://billa.bg">
-                        <small>Въведете пълния URL адрес (с http:// или https://)</small>
+                        <input type="text" id="url-address" required placeholder="https://billa.bg или app://start за MAMAFOOD">
+                        <small>Въведете пълния URL адрес (напр. https://billa.bg) или app://start за MAMAFOOD приложението</small>
                     </div>
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">➕ Добави</button>

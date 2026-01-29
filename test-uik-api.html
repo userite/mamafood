@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+вс<!DOCTYPE html>
 <html lang="bg">
 <head>
     <meta charset="UTF-8">
@@ -879,6 +879,19 @@ ${errorMessage}${additionalInfo}
 
         // Автоматично попълване на UIK и device_serial от localStorage при зареждане
         window.addEventListener('DOMContentLoaded', function() {
+            // Автоматично избиране на production URL ако сме на production домейн
+            const hostname = window.location.hostname;
+            const apiBaseSelect = document.getElementById('api-base');
+            
+            if (hostname === 'pci.inex-project.net' || hostname === 'inex-project.net' || hostname.includes('inex-project.net')) {
+                // На production - използвай production API
+                apiBaseSelect.value = 'https://mamafood.onrender.com';
+                console.log('[Auto-config] Production домейн открит, използвам production API');
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                // На localhost - използвай локален API
+                apiBaseSelect.value = 'http://localhost:3000';
+                console.log('[Auto-config] Локален домейн, използвам локален API');
+            }
             try {
                 // Попълване на UIK
                 const uik = localStorage.getItem('mamafood_uik');
