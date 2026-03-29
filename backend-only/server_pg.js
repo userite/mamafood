@@ -18,6 +18,8 @@ const cors = require('cors');
 const path = require('path');
 const webpush = require('web-push');
 const crypto = require('crypto');
+const QRCode = require('qrcode');
+const idService = require(path.join(__dirname, '..', 'lib', 'identifier-service.js'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -282,6 +284,25 @@ if (VAPID_PUBLIC && VAPID_PRIVATE && VAPID_PUBLIC.length > 50) {
             UNIQUE (uik, url)
         );`);
         console.log('✅ Table "uik_urls" is ready.');
+
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS identifier_codes (
+                    id SERIAL PRIMARY KEY,
+                    code_type VARCHAR(64) NOT NULL,
+                    code_value TEXT NOT NULL UNIQUE,
+                    human_description TEXT,
+                    code_group VARCHAR(255),
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            await pool.query(`
+                CREATE INDEX IF NOT EXISTS idx_identifier_codes_group ON identifier_codes (code_group);
+            `);
+            console.log('✅ Table "identifier_codes" is ready.');
+        } catch (e) {
+            console.error('❌ Failed ensuring "identifier_codes" table:', e.message);
+        }
 
         // Таблица 8: accounting_chart (Счетоводен сметкоплан)
         try {
@@ -1323,6 +1344,216 @@ app.delete('/api/uik/:uik/urls/:id', async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error deleting URL:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// ============================================
+// Identifiers API (UUID, ULID, CUID2, Snowflake, QR)
+// ============================================
+
+app.get('/api/identifiers/catalog', (req, res) => {
+    try {
+        res.json({
+            ...idService.IDENTIFIER_CATALOG,
+            generatableTypes: idService.GENERATABLE_TYPES
+        });
+    } catch (error) {
+        console.error('GET /api/identifiers/catalog:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/identifiers/generate', async (req, res) => {
+    try {
+        const {
+            codeType,
+            humanDescription,
+            codeGroup,
+            saveToDatabase,
+            namespace,
+            name
+        } = req.body || {};
+
+        if (!codeType || typeof codeType !== 'string') {
+            return res.status(400).json({ error: 'Задължително поле codeType (напр. uuid-v4, ulid, snowflake)' });
+        }
+
+        const code = idService.generateCode(codeType.trim(), { namespace, name });
+
+        const { payloadJson, qrRawString } = idService.buildQrPayload({
+            code,
+            codeType: codeType.trim(),
+            humanDescription: humanDescription != null ? String(humanDescription) : '',
+            codeGroup: codeGroup != null ? String(codeGroup) : ''
+        });
+
+        const wantsDb =
+            saveToDatabase === true ||
+            saveToDatabase === 'true' ||
+            saveToDatabase === 1 ||
+            saveToDatabase === '1';
+
+        let savedRow = null;
+        if (wantsDb) {
+            const client = await pool.connect();
+            try {
+                const ins = await client.query(
+                    `INSERT INTO identifier_codes (code_type, code_value, human_description, code_group)
+                     VALUES ($1, $2, $3, $4)
+                     RETURNING id, code_type, code_value, human_description, code_group, created_at`,
+                    [
+                        codeType.trim(),
+                        code,
+                        humanDescription != null ? String(humanDescription) : null,
+                        codeGroup != null ? String(codeGroup) : null
+                    ]
+                );
+                savedRow = ins.rows[0];
+            } finally {
+                client.release();
+            }
+        }
+
+        res.status(201).json({
+            code,
+            codeType: codeType.trim(),
+            humanDescription: humanDescription != null ? String(humanDescription) : '',
+            codeGroup: codeGroup != null ? String(codeGroup) : '',
+            qrPayload: payloadJson,
+            qrRawString,
+            saved: savedRow
+        });
+    } catch (error) {
+        if (error.code === 'UNSUPPORTED_TYPE' || error.code === 'UUID_V2_UNSUPPORTED') {
+            return res.status(400).json({ error: error.message });
+        }
+        if (error.code === '23505') {
+            return res.status(409).json({ error: 'Кодът вече съществува (рядка колизия при запис)' });
+        }
+        console.error('POST /api/identifiers/generate:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/identifiers/store', async (req, res) => {
+    const { code, codeType, humanDescription, codeGroup } = req.body || {};
+
+    if (code == null || String(code).trim() === '') {
+        return res.status(400).json({ error: 'Задължително поле code (идентификатор)' });
+    }
+    if (!codeType || typeof codeType !== 'string' || !codeType.trim()) {
+        return res.status(400).json({ error: 'Задължително поле codeType' });
+    }
+
+    const client = await pool.connect();
+    try {
+        const ins = await client.query(
+            `INSERT INTO identifier_codes (code_type, code_value, human_description, code_group)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id, code_type, code_value, human_description, code_group, created_at`,
+            [
+                codeType.trim(),
+                String(code).trim(),
+                humanDescription != null && String(humanDescription).trim() !== ''
+                    ? String(humanDescription)
+                    : null,
+                codeGroup != null && String(codeGroup).trim() !== '' ? String(codeGroup) : null
+            ]
+        );
+
+        res.status(201).json({
+            message: 'Нов запис е създаден в БД',
+            saved: ins.rows[0]
+        });
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(409).json({
+                error: 'Този code_value вече съществува в БД (уникален ключ). Генерирай нов код или използвай друг запис.'
+            });
+        }
+        console.error('POST /api/identifiers/store:', error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+app.post('/api/identifiers/validate', (req, res) => {
+    try {
+        const { code, codeType } = req.body || {};
+        if (code == null || String(code).trim() === '') {
+            return res.status(400).json({ error: 'Задължително поле code' });
+        }
+        const result = idService.validateCode(String(code), codeType ? String(codeType).trim() : undefined);
+        res.json(result);
+    } catch (error) {
+        console.error('POST /api/identifiers/validate:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/identifiers/parse-qr', (req, res) => {
+    try {
+        const { raw } = req.body || {};
+        if (raw == null) {
+            return res.status(400).json({ error: 'Задължително поле raw (съдържание от QR скенер)' });
+        }
+        const parsed = idService.parseQrPayload(String(raw));
+        res.json(parsed);
+    } catch (error) {
+        console.error('POST /api/identifiers/parse-qr:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/identifiers/qr', async (req, res) => {
+    try {
+        const { payload, width, margin } = req.body || {};
+        let text;
+        if (payload != null && typeof payload === 'object') {
+            text = JSON.stringify(payload);
+        } else if (typeof payload === 'string') {
+            text = payload;
+        } else {
+            return res.status(400).json({
+                error: 'Задължително поле payload (обект qrPayload от /generate или JSON низ)'
+            });
+        }
+        const w = Math.min(1024, Math.max(120, Number(width) || 320));
+        const m = Math.min(8, Math.max(0, Number(margin) || 2));
+        const buf = await QRCode.toBuffer(text, {
+            type: 'png',
+            width: w,
+            margin: m,
+            errorCorrectionLevel: 'M',
+            color: { dark: '#000000ff', light: '#ffffffff' }
+        });
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(buf);
+    } catch (error) {
+        console.error('POST /api/identifiers/qr:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/identifiers/stored', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const { rows } = await client.query(
+            `SELECT id, code_type, code_value, human_description, code_group, created_at
+             FROM identifier_codes
+             ORDER BY created_at DESC
+             LIMIT $1`,
+            [limit]
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('GET /api/identifiers/stored:', error);
         res.status(500).json({ error: error.message });
     } finally {
         client.release();
