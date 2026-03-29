@@ -1,4 +1,4 @@
-вс<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="bg">
 <head>
     <meta charset="UTF-8">
@@ -105,13 +105,116 @@
             border-radius: 3px;
             font-family: 'Courier New', monospace;
         }
+
+        /* QR карта за екран и печат на хартия */
+        .qr-print-card {
+            display: inline-block;
+            text-align: left;
+            background: #fff;
+            border: 2px solid #2e7d32;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+            overflow: hidden;
+            max-width: 340px;
+            vertical-align: top;
+        }
+        .qr-print-card .qr-card-qr-wrap {
+            text-align: center;
+            padding: 16px 16px 8px;
+            background: linear-gradient(180deg, #fafafa 0%, #fff 100%);
+            border-bottom: 1px solid #e8e8e8;
+        }
+        .qr-print-card .qr-card-img {
+            width: 220px;
+            height: 220px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .qr-print-card .qr-card-body {
+            padding: 14px 16px 18px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        .qr-print-card .qr-card-desc {
+            margin: 0 0 12px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #1b5e20;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+        .qr-print-card .qr-card-desc--empty {
+            color: #888 !important;
+            font-weight: 400 !important;
+        }
+        .qr-print-card .qr-card-meta {
+            margin: 6px 0;
+            font-size: 0.82rem;
+            color: #444;
+        }
+        .qr-print-card .qr-card-meta span {
+            color: #666;
+            font-weight: 600;
+        }
+        .qr-print-card .qr-card-code-label {
+            margin: 14px 0 4px;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #666;
+        }
+        .qr-print-card .qr-card-code {
+            margin: 0;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.4;
+            word-break: break-all;
+            color: #111;
+            padding: 8px 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        .qr-card-toolbar {
+            margin-bottom: 10px;
+        }
+        @media print {
+            body {
+                background: #fff !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .container {
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+            }
+            .section {
+                border: none !important;
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .qr-card-section {
+                border: none !important;
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .qr-print-card {
+                box-shadow: none !important;
+                border: 2px solid #000 !important;
+                page-break-inside: avoid;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🧪 Тест на UIK API</h1>
+        <h1 class="no-print">🧪 Тест на UIK API</h1>
         
-        <div class="info">
+        <div class="info no-print">
             <strong>💡 Информация:</strong><br>
             • За локално тестване използвай: <code>http://localhost:3000</code><br>
             • За production използвай: <code>https://mamafood.onrender.com</code><br>
@@ -130,7 +233,7 @@
         </div>
 
         <!-- 1. VERIFY UIK + PIN -->
-        <div class="section">
+        <div class="section no-print">
             <h2>1️⃣ Проверка на PIN и връщане на UIK</h2>
             <p><strong>Endpoint:</strong> <code>POST /api/uik/verify</code></p>
             
@@ -161,7 +264,7 @@
         </div>
 
         <!-- 2. GET UIK INFO -->
-        <div class="section">
+        <div class="section no-print">
             <h2>2️⃣ Получаване на информация за UIK</h2>
             <p><strong>Endpoint:</strong> <code>GET /api/uik/info/:uik</code></p>
             
@@ -172,7 +275,7 @@
         </div>
 
         <!-- 3. REGISTER UIK -->
-        <div class="section">
+        <div class="section no-print">
             <h2>3️⃣ Регистрация на нов UIK</h2>
             <p><strong>Endpoint:</strong> <code>POST /api/uik/register</code></p>
             
@@ -202,7 +305,7 @@
         </div>
 
         <!-- 4. ATTACH TO UIK -->
-        <div class="section">
+        <div class="section no-print">
             <h2>4️⃣ Прикачване към съществуващ UIK</h2>
             <p><strong>Endpoint:</strong> <code>POST /api/uik/attach</code></p>
             
@@ -216,9 +319,57 @@
             <div id="attach-result"></div>
         </div>
 
-        <!-- 5. Тестване от конзолата -->
-        <div class="section">
-            <h2>5️⃣ Тестване от конзолата на браузъра</h2>
+        <!-- 5. Identifiers API -->
+        <div class="section qr-card-section">
+            <div class="no-print">
+            <h2>5️⃣ Идентификатори и QR (каталог, генериране, валидация, PNG)</h2>
+            <p>Използва същия <strong>API Base URL</strong> от секция 1. Каталогът описва UUID v1–v8, ULID, CUID2, Snowflake.</p>
+            <p><strong>Endpoints:</strong> <code>GET /api/identifiers/catalog</code> · <code>POST /api/identifiers/generate</code> · <code>POST /api/identifiers/store</code> (нов INSERT) · <code>POST /api/identifiers/validate</code> · <code>POST /api/identifiers/parse-qr</code> · <code>POST /api/identifiers/qr</code> · <code>GET /api/identifiers/stored</code></p>
+
+            <label for="id-code-type">Тип код (codeType):</label>
+            <select id="id-code-type">
+                <option value="uuid-v4">uuid-v4</option>
+                <option value="uuid-v7">uuid-v7</option>
+                <option value="uuid-v1">uuid-v1</option>
+                <option value="uuid-v3">uuid-v3</option>
+                <option value="uuid-v5">uuid-v5</option>
+                <option value="uuid-v6">uuid-v6</option>
+                <option value="uuid-v8">uuid-v8</option>
+                <option value="ulid">ulid</option>
+                <option value="cuid2">cuid2</option>
+                <option value="snowflake">snowflake</option>
+            </select>
+
+            <label for="id-human-desc">Текстово описание (humanDescription):</label>
+            <input type="text" id="id-human-desc" placeholder="Напр. Карта — дете Алекс">
+
+            <label for="id-code-group">Група (codeGroup):</label>
+            <input type="text" id="id-code-group" placeholder="Напр. mamafood-prod / фирма X">
+
+            <button class="secondary" onclick="testIdentifiersCatalog()">📚 Каталог</button>
+            <button onclick="testIdentifiersGenerate()">⚡ Генерирай</button>
+            <button class="secondary" onclick="testIdentifiersStoreToDb()">💾 Запис в БД</button>
+            <button class="secondary" onclick="testIdentifiersValidate()">✔️ Валидирай последния код</button>
+            <button class="secondary" onclick="testIdentifiersParseQr()">🔍 Парсирай QR низ</button>
+            <button class="secondary" onclick="testIdentifiersQrPng()">🖼️ PNG QR</button>
+            <button class="secondary" onclick="saveIdentifiersQrPng()">💾 Запази PNG</button>
+            <button class="secondary" onclick="testIdentifiersStored()">📋 Списък от БД</button>
+
+            <label for="id-parse-raw" style="margin-top:15px;">Суров текст от QR (parse-qr):</label>
+            <textarea id="id-parse-raw" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;" placeholder='Постави JSON от qrRawString или само код'></textarea>
+
+            <div id="id-result" style="margin-top:12px;"></div>
+            </div>
+
+            <p class="no-print" style="margin-top:16px;margin-bottom:8px;color:#555;font-size:14px;">
+                <strong>QR карта за хартия:</strong> след „PNG QR“ по-долу се вижда кодът + текстово описание, група и идентификатор — подходящо за печат.
+            </p>
+            <div id="id-qr-preview" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- 6. Тестване от конзолата -->
+        <div class="section no-print">
+            <h2>6️⃣ Тестване от конзолата на браузъра</h2>
             <p>Ако имаш проблеми с формата, можеш да тестваш директно от конзолата (F12):</p>
             <div style="background: #f4f4f4; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; overflow-x: auto;">
                 <strong>Пример за VERIFY:</strong><br>
@@ -924,6 +1075,385 @@ ${errorMessage}${additionalInfo}
                 // Не показваме alert тук, защото може да е досадно при всяко зареждане
             }
         });
+
+        let lastGeneratedIdentifier = '';
+        let lastGeneratedCodeType = '';
+        let lastQrPngBlob = null;
+        let lastQrPngDataUrl = null;
+        let lastQrPngFileName = 'mamafood-qr.png';
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        function parseQrPayloadForCard(raw) {
+            const t = String(raw || '').trim();
+            if (!t) return { c: '', d: '', g: '', type: '', mf: null };
+            if (!t.startsWith('{')) return { c: t, d: '', g: '', type: '', mf: null };
+            try {
+                const o = JSON.parse(t);
+                return {
+                    c: o.c != null ? String(o.c) : '',
+                    d: o.d != null ? String(o.d) : '',
+                    g: o.g != null ? String(o.g) : '',
+                    type: o.t != null ? String(o.t) : '',
+                    mf: o.mf
+                };
+            } catch (e) {
+                return { c: '', d: '', g: '', type: '', mf: null };
+            }
+        }
+
+        function buildQrCardInnerHtml(dataUrl, info) {
+            const descHtml = info.d
+                ? '<p class="qr-card-desc">' + escapeHtml(info.d) + '</p>'
+                : '<p class="qr-card-desc qr-card-desc--empty">(без текстово описание)</p>';
+            const typeLine = info.type
+                ? '<p class="qr-card-meta"><span>Тип код:</span> ' + escapeHtml(info.type) + '</p>'
+                : '';
+            const groupLine = info.g
+                ? '<p class="qr-card-meta"><span>Група:</span> ' + escapeHtml(info.g) + '</p>'
+                : '';
+            return (
+                '<div class="qr-print-card">' +
+                '<div class="qr-card-qr-wrap"><img class="qr-card-img" src="' +
+                dataUrl +
+                '" alt="QR код" /></div>' +
+                '<div class="qr-card-body">' +
+                descHtml +
+                typeLine +
+                groupLine +
+                '<p class="qr-card-code-label">Идентификатор (сканира се от QR)</p>' +
+                '<p class="qr-card-code">' +
+                escapeHtml(info.c || '—') +
+                '</p>' +
+                '</div></div>'
+            );
+        }
+
+        function getQrCardPrintStylesCss() {
+            return (
+                'body{font-family:Segoe UI,system-ui,sans-serif;margin:0;padding:16px;background:#fff;}' +
+                '.qr-print-card{display:inline-block;text-align:left;background:#fff;border:2px solid #000;border-radius:8px;overflow:hidden;max-width:340px;}' +
+                '.qr-print-card .qr-card-qr-wrap{text-align:center;padding:16px 16px 8px;background:#fafafa;border-bottom:1px solid #ddd;}' +
+                '.qr-print-card .qr-card-img{width:220px;height:220px;}' +
+                '.qr-print-card .qr-card-body{padding:14px 16px 18px;}' +
+                '.qr-print-card .qr-card-desc{margin:0 0 12px;font-size:14pt;font-weight:600;color:#111;line-height:1.35;word-break:break-word;}' +
+                '.qr-print-card .qr-card-desc--empty{color:#666;font-weight:400;}' +
+                '.qr-print-card .qr-card-meta{margin:6px 0;font-size:10pt;color:#333;}' +
+                '.qr-print-card .qr-card-meta span{color:#444;font-weight:600;}' +
+                '.qr-print-card .qr-card-code-label{margin:14px 0 4px;font-size:8pt;text-transform:uppercase;letter-spacing:0.06em;color:#444;}' +
+                '.qr-print-card .qr-card-code{margin:0;font-family:Consolas,Courier New,monospace;font-size:8pt;line-height:1.35;word-break:break-all;color:#111;padding:8px 10px;background:#f5f5f5;border-radius:6px;border:1px solid #ccc;}' +
+                '@page{margin:12mm;}'
+            );
+        }
+
+        function printIdentifiersQrCard() {
+            if (!lastQrPngDataUrl) {
+                alert('Няма карта за печат. Първо натисни „PNG QR“.');
+                return;
+            }
+            const raw = document.getElementById('id-parse-raw').value;
+            const info = parseQrPayloadForCard(raw);
+            const inner = buildQrCardInnerHtml(lastQrPngDataUrl, info);
+            const doc =
+                '<!DOCTYPE html><html lang="bg"><head><meta charset="UTF-8"><title>QR карта</title>' +
+                '<style>' +
+                getQrCardPrintStylesCss() +
+                '</style></head><body>' +
+                inner +
+                '</body></html>';
+            const w = window.open('', '_blank');
+            if (!w) {
+                alert('Позволи изскачащи прозорци за печат.');
+                return;
+            }
+            w.document.open();
+            w.document.write(doc);
+            w.document.close();
+            setTimeout(function () {
+                try {
+                    w.focus();
+                    w.print();
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 200);
+        }
+
+        function suggestQrPngFileName() {
+            const raw = document.getElementById('id-parse-raw').value.trim();
+            if (!raw.startsWith('{')) return 'mamafood-qr.png';
+            try {
+                const o = JSON.parse(raw);
+                if (o && o.c) {
+                    const safe = String(o.c).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 48);
+                    return (safe || 'qr') + '.png';
+                }
+            } catch (e) { /* ignore */ }
+            return 'mamafood-qr.png';
+        }
+
+        function saveIdentifiersQrPng() {
+            if (!lastQrPngBlob) {
+                alert('Няма зареден PNG. Първо натисни „PNG QR“ (само QR изображението).');
+                return;
+            }
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(lastQrPngBlob);
+            a.download = lastQrPngFileName;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(a.href); }, 2500);
+        }
+
+        /** Чете тяло като JSON; ако сървърът върне HTML (404 страница), дава ясна грешка вместо Unexpected token '<' */
+        async function parseResponseJson(response) {
+            const text = await response.text();
+            const t = text.trim();
+            if (!t) return {};
+            if (t.charAt(0) === '<') {
+                const hint =
+                    response.status === 404
+                        ? ' Няма такъв API маршрут — качи последния код на сървъра (deploy) или ползвай http://localhost:3000.'
+                        : ' Често production още не е обновен или има грешка от прокси.';
+                throw new Error(
+                    'Сървърът върна HTML вместо JSON (HTTP ' + response.status + ').' + hint
+                );
+            }
+            try {
+                return JSON.parse(t);
+            } catch (e) {
+                throw new Error('Невалиден JSON от сървъра: ' + t.slice(0, 200));
+            }
+        }
+
+        /** За „Запис в БД“: code от последно генериране ИЛИ от JSON в полето за суров текст (полета c, t, d, g). */
+        function parseIdentifierFieldsForStore() {
+            const raw = document.getElementById('id-parse-raw').value.trim();
+            let parsed = null;
+            if (raw.startsWith('{')) {
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (e) {
+                    return { error: 'Невалиден JSON в „Суров текст от QR“: ' + e.message };
+                }
+            }
+
+            let code = lastGeneratedIdentifier || '';
+            let codeType = lastGeneratedCodeType || document.getElementById('id-code-type').value;
+            let humanDescription = document.getElementById('id-human-desc').value.trim();
+            let codeGroup = document.getElementById('id-code-group').value.trim();
+
+            if (parsed) {
+                if (!code && parsed.c != null) code = String(parsed.c).trim();
+                if (parsed.t) codeType = String(parsed.t).trim();
+                if (!humanDescription && parsed.d != null) humanDescription = String(parsed.d);
+                if (!codeGroup && parsed.g != null) codeGroup = String(parsed.g);
+            }
+
+            if (!code) {
+                return {
+                    error:
+                        'Липсва идентификатор (code). Натисни „Генерирай“ или постави валиден JSON с поле „c“ в полето за суров текст.'
+                };
+            }
+            if (!codeType) {
+                return { error: 'Липсва тип (codeType / поле t в JSON).' };
+            }
+            return { code, codeType, humanDescription, codeGroup };
+        }
+
+        async function testIdentifiersCatalog() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            resultDiv.innerHTML = '<div class="result">⏳ Зареждане на каталог...</div>';
+            try {
+                const response = await fetch(`${apiBase}/api/identifiers/catalog`);
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersStoreToDb() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const fields = parseIdentifierFieldsForStore();
+            if (fields.error) {
+                resultDiv.innerHTML = '<div class="result error">' + fields.error + '</div>';
+                return;
+            }
+            resultDiv.innerHTML = '<div class="result">⏳ Запис в БД (нов ред)...</div>';
+            try {
+                const response = await fetch(`${apiBase}/api/identifiers/store`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: fields.code,
+                        codeType: fields.codeType,
+                        humanDescription: fields.humanDescription,
+                        codeGroup: fields.codeGroup
+                    })
+                });
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersGenerate() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const codeType = document.getElementById('id-code-type').value;
+            const humanDescription = document.getElementById('id-human-desc').value.trim();
+            const codeGroup = document.getElementById('id-code-group').value.trim();
+            resultDiv.innerHTML = '<div class="result">⏳ Генериране...</div>';
+            try {
+                const response = await fetch(`${apiBase}/api/identifiers/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        codeType,
+                        humanDescription,
+                        codeGroup
+                    })
+                });
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                lastGeneratedIdentifier = data.code;
+                lastGeneratedCodeType = data.codeType || '';
+                document.getElementById('id-parse-raw').value = data.qrRawString || '';
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersValidate() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const code = lastGeneratedIdentifier || prompt('Въведи код за валидация:');
+            if (!code) return;
+            resultDiv.innerHTML = '<div class="result">⏳ Валидация...</div>';
+            try {
+                const payload = { code };
+                if (lastGeneratedCodeType) payload.codeType = lastGeneratedCodeType;
+                const response = await fetch(`${apiBase}/api/identifiers/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersParseQr() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const raw = document.getElementById('id-parse-raw').value;
+            resultDiv.innerHTML = '<div class="result">⏳ Парсване...</div>';
+            try {
+                const response = await fetch(`${apiBase}/api/identifiers/parse-qr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw })
+                });
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersQrPng() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const preview = document.getElementById('id-qr-preview');
+            let payload = document.getElementById('id-parse-raw').value.trim();
+            if (!payload) {
+                resultDiv.innerHTML = '<div class="result error">Първо генерирай код или постави qrRawString в полето.</div>';
+                return;
+            }
+            try {
+                let body = { payload: payload, width: 280 };
+                if (payload.startsWith('{')) {
+                    body.payload = JSON.parse(payload);
+                }
+                const response = await fetch(`${apiBase}/api/identifiers/qr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const err = await parseResponseJson(response);
+                    throw new Error(err.error || response.statusText);
+                }
+                const blob = await response.blob();
+                lastQrPngBlob = blob;
+                lastQrPngFileName = suggestQrPngFileName();
+                const dataUrl = await new Promise(function (resolve, reject) {
+                    const r = new FileReader();
+                    r.onload = function () {
+                        resolve(r.result);
+                    };
+                    r.onerror = function () {
+                        reject(new Error('FileReader'));
+                    };
+                    r.readAsDataURL(blob);
+                });
+                lastQrPngDataUrl = dataUrl;
+
+                const info = parseQrPayloadForCard(document.getElementById('id-parse-raw').value);
+                const cardHtml = buildQrCardInnerHtml(dataUrl, info);
+
+                preview.innerHTML =
+                    '<div class="qr-card-toolbar no-print">' +
+                    '<p style="margin:0 0 8px;"><strong>Преглед на QR карта (с текст под кода):</strong></p>' +
+                    '<button type="button" class="secondary" onclick="saveIdentifiersQrPng()">💾 Запази само PNG (QR)</button> ' +
+                    '<button type="button" class="secondary" onclick="printIdentifiersQrCard()">🖨️ Печат на карта</button>' +
+                    '</div>' +
+                    cardHtml;
+
+                resultDiv.innerHTML =
+                    '<div class="result success">✅ PNG получен (' + blob.size + ' bytes). Файл (само QR): <code>' +
+                    lastQrPngFileName +
+                    '</code>. Пълната карта с текст е по-долу — „Печат на карта“ или Ctrl+P (само картата в прегледа).</div>';
+            } catch (error) {
+                lastQrPngBlob = null;
+                lastQrPngDataUrl = null;
+                preview.innerHTML = '';
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
+        async function testIdentifiersStored() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            resultDiv.innerHTML = '<div class="result">⏳ Зареждане...</div>';
+            try {
+                const response = await fetch(`${apiBase}/api/identifiers/stored?limit=50`);
+                const data = await parseResponseJson(response);
+                if (!response.ok) throw new Error(data.error || response.statusText);
+                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
     </script>
 </body>
 </html>

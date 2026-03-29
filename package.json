@@ -16,9 +16,13 @@
   "author": "Габи и Кай",
   "license": "ISC",
   "dependencies": {
+    "@paralleldrive/cuid2": "^3.3.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "pg": "^8.11.3",
+    "qrcode": "^1.5.4",
+    "ulid": "^3.0.2",
+    "uuid": "^13.0.0",
     "web-push": "^3.6.7"
   },
   "engines": {

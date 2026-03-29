@@ -154,38 +154,54 @@ async function renderURLList() {
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    // Отваряне на приложението (index.html) в нов tab
+                    // Отваряне на приложението (mamafood.html - standalone версия) в нов tab
+                    // ВИНАГИ използваме mamafood.html за standalone версия без UIK система
                     let appUrl;
-                    
-                    // Определяне на правилния път според текущата локация
-                    const currentPath = window.location.pathname;
-                    const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
                     
                     if (window.location.protocol === 'file:') {
                         // За file:// протокол - използваме относителен път от текущата директория
-                        appUrl = currentDir + 'index.html';
+                        const currentPath = window.location.pathname;
+                        const currentDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+                        appUrl = currentDir + 'mamafood.html';
                     } else {
-                        // За http/https - използваме абсолютен път от origin
-                        // Премахваме всички query параметри и hash за чист URL
-                        appUrl = window.location.origin + '/index.html';
+                        // За http/https - винаги използваме абсолютен път от root директорията
+                        // Използваме mamafood.html (standalone версия без UIK система)
+                        appUrl = window.location.origin + '/mamafood.html';
                     }
                     
-                    console.log('[URL Manager] Отваряне на приложението');
-                    console.log('[URL Manager] - URL:', appUrl);
+                    // ПРОВЕРКА: Уверяваме се че използваме mamafood.html, не index.html
+                    if (appUrl.includes('index.html')) {
+                        console.error('[URL Manager] ❌ ГРЕШКА: URL съдържа index.html вместо mamafood.html!');
+                        appUrl = appUrl.replace('index.html', 'mamafood.html');
+                        console.log('[URL Manager] ✅ Коригиран URL:', appUrl);
+                    }
+                    
+                    console.log('[URL Manager] ============================================');
+                    console.log('[URL Manager] Отваряне на MAMAFOOD приложението');
+                    console.log('[URL Manager] - URL name:', url.name);
+                    console.log('[URL Manager] - URL value:', url.url);
                     console.log('[URL Manager] - Текуща локация:', window.location.href);
                     console.log('[URL Manager] - Origin:', window.location.origin);
                     console.log('[URL Manager] - Pathname:', window.location.pathname);
+                    console.log('[URL Manager] - Protocol:', window.location.protocol);
+                    console.log('[URL Manager] - Final URL:', appUrl);
+                    console.log('[URL Manager] - Проверка за index.html:', appUrl.includes('index.html') ? '❌ НАМЕРЕН!' : '✅ OK');
+                    console.log('[URL Manager] ============================================');
                     
                     // Опитваме се с window.open() първо (ако работи)
                     try {
+                        console.log('[URL Manager] Опит с window.open()...');
                         const newWindow = window.open(appUrl, '_blank', 'noopener,noreferrer');
                         
                         if (newWindow && !newWindow.closed) {
-                            console.log('[URL Manager] ✅ window.open() успешен');
+                            console.log('[URL Manager] ✅ window.open() успешен, нов прозорец отворен');
                             return;
+                        } else {
+                            console.warn('[URL Manager] ⚠️ window.open() върна null или прозорецът е затворен');
                         }
                     } catch (error) {
-                        console.warn('[URL Manager] window.open() неуспешен, опитвам с <a> таг:', error);
+                        console.error('[URL Manager] ❌ window.open() неуспешен:', error);
+                        console.log('[URL Manager] Опитвам с <a> таг...');
                     }
                     
                     // Ако window.open() не работи, използваме <a> таг
@@ -203,12 +219,19 @@ async function renderURLList() {
                     console.log('[URL Manager] - Link complete href:', link.href);
                     
                     // Използваме директно click() метода
+                    console.log('[URL Manager] Кликване на линка...');
                     link.click();
+                    
+                    // Проверка дали линкът е активиран
+                    setTimeout(() => {
+                        console.log('[URL Manager] Проверка след кликване - link.href:', link.href);
+                    }, 100);
                     
                     // Изчакваме малко преди да премахнем линка
                     setTimeout(() => {
                         if (document.body.contains(link)) {
                             document.body.removeChild(link);
+                            console.log('[URL Manager] Линкът премахнат от DOM');
                         }
                     }, 500);
                     

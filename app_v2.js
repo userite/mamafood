@@ -1,14 +1,25 @@
 // МАМАФООД - Основен файл с функционалности
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('[App Init] DOMContentLoaded - проверка за UIK система');
+    
     // Проверка за UIK система преди стартиране на приложението
     // Изчакваме малко за да се заредят всички скриптове
     setTimeout(function() {
+        console.log('[App Init] Проверка за initUIKSystem функция...');
+        console.log('[App Init] - typeof initUIKSystem:', typeof initUIKSystem);
+        console.log('[App Init] - typeof window.initUIKSystem:', typeof window.initUIKSystem);
+        
         if (typeof initUIKSystem === 'function') {
+            console.log('[App Init] ✅ UIK системата е заредена, инициализираме я');
             // UIK системата е заредена, инициализираме я
             // Тя ще покаже registration или login screen според дали има запазен UIK
             // Основното приложение ще се стартира след успешен вход чрез startApp()
             initUIKSystem();
+        } else if (typeof window.initUIKSystem === 'function') {
+            console.log('[App Init] ✅ UIK системата е заредена (чрез window), инициализираме я');
+            window.initUIKSystem();
         } else {
+            console.log('[App Init] ⚠️ UIK системата не е заредена, стартираме нормално приложението');
             // UIK системата не е заредена, стартираме нормално приложението
             window.appInitialized = true;
             initApp();

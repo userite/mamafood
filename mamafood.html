@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4A90E2">
+    <meta name="description" content="МАМАФООД - Приложение за следеене на съхранение на кърма">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>МАМАФООД</title>
+    <link rel="manifest" href="manifest.json?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🍼</text></svg>">
+    <script>
+        // Force cache busting with timestamp
+        const CACHE_BUST = '?v=' + Date.now();
+    </script>
+    <script src="i18n.js?v=3"></script>
+    <!-- НЕ включваме UIK системата - това е standalone версия -->
+    <script src="app_v2.js?v=14"></script>
+    <script>
+        // Модифицирана инициализация за standalone версия - директно стартира приложението
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[MAMAFOOD Standalone] DOMContentLoaded - директно стартиране на приложението');
+            
+            // Показваме основното приложение веднага
+            const mainApp = document.getElementById('main-app-container');
+            if (mainApp) {
+                mainApp.style.display = 'flex';
+                console.log('[MAMAFOOD Standalone] ✅ Основното приложение е показано');
+            }
+            
+            // Стартираме приложението директно без UIK проверка
+            setTimeout(function() {
+                if (typeof initApp === 'function' && !window.appInitialized) {
+                    console.log('[MAMAFOOD Standalone] Стартиране на initApp()...');
+                    window.appInitialized = true;
+                    initApp();
+                } else {
+                    console.log('[MAMAFOOD Standalone] ⚠️ initApp не е намерена или вече е инициализирана');
+                }
+            }, 100);
+        });
+    </script>
+</head>
+<body>
+    <!-- Основно приложение - винаги видимо в standalone версията -->
+    <div class="app-container" id="main-app-container" style="display: flex;">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 data-i18n="appName">🍼 МАМАФООД</h1>
+                <span class="child-info" id="childInfo" onclick="showChildCode()">
+                    <span id="childCodeDisplayHeader"></span>
+                    <span id="childNameDisplayHeader"></span>
+                </span>
+            </div>
+            <div class="header-right">
+                <button class="btn-child-code" onclick="showChildCode()" title="Код на детето" id="btnChildCode">
+                    👶
+                </button>
+                <div class="lang-buttons">
+                    <button class="btn-lang" onclick="changeLanguage('bg')" title="Български">bg</button>
+                    <button class="btn-lang" onclick="changeLanguage('en')" title="English">en</button>
+                </div>
+                <button class="btn-install" id="btnInstall" onclick="showInstallInstructions()" title="Add to Home Screen" style="display: none;">
+                    📱
+                </button>
+                <button class="btn-lang" id="btnPushStatus" onclick="testPush()" title="Push notifications" style="display: inline-flex;">🔔</button>
+                <button class="btn-refresh" id="btnRefresh" onclick="refreshData()" title="Опресни данните">⟳</button>
+                <button class="btn-add" id="btnAdd" aria-label="Добави нов запис">+</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Раздел за кърма -->
+            <div id="milk-section">
+                <!-- Записи -->
+                <section class="records-section" id="recordsSection">
+                    <h2 data-i18n="currentPortions">Текущи порции</h2>
+                    <div id="recordsList" class="records-list">
+                        <!-- Records will be dynamically inserted here -->
+                    </div>
+                    <p class="empty-state" id="emptyState" data-i18n="noRecords">Няма записи. Добавете първа порция.</p>
+                </section>
+
+                <!-- Изтекли порции -->
+                <section class="records-section" id="expiredSection" style="display: none;">
+                    <h2 style="color: var(--danger);" data-i18n="expiredPortions">Изтекли порции</h2>
+                    <div id="expiredList" class="records-list">
+                        <!-- Expired records will be dynamically inserted here -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Раздел за хранене -->
+            <div id="feeding-section" style="display: none;">
+                <section class="records-section">
+                    <h2 data-i18n="feedingRecords">Записи за хранене</h2>
+                    <div id="feedingList" class="records-list">
+                        <!-- Feeding records will be dynamically inserted here -->
+                    </div>
+                    <p class="empty-state" id="feedingEmptyState" data-i18n="noFeedingRecords">Няма записи за хранене.</p>
+                </section>
+            </div>
+            <!-- Статистика -->
+            <section class="stats-section">
+                <h3 data-i18n="statistics">Статистика</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-number" id="totalRecords">0</span>
+                        <span class="stat-label" data-i18n="totalPortions">Общо порции</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="activeRecords">0</span>
+                        <span class="stat-label" data-i18n="active">Активни</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number" id="expiringRecords">0</span>
+                        <span class="stat-label" data-i18n="expiringSoon">Изтичат скоро</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modal за добавяне/редактиране -->
+        <div class="modal" id="recordModal">
+            <div class="modal-content">
+                <button class="modal-close" id="modalClose">&times;</button>
+                <h2 id="modalTitle" data-i18n="addPortion">Добавяне на нова порция</h2>
+                <form id="recordForm" class="record-form">
+                    <div class="form-group">
+                        <label for="amount" data-i18n="amountLabel">Количество (ml)</label>
+                        <input type="number" id="amount" name="amount" min="1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="situation" data-i18n="situationLabel">Ситуация</label>
+                        <select id="situation" name="situation" required>
+                            <option value=""></option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="datetime" data-i18n="datetimeLabel">Дата и час на изцеждане</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="date" id="dateInput" name="date" lang="bg-BG" required style="flex: 1;">
+                            <input type="time" id="timeInput" name="time" required style="flex: 1;">
+                        </div>
+                        <input type="hidden" id="datetime" name="datetime">
+                        <small class="datetime-format-hint" id="datetimeFormatHint" style="display: block; color: #666; font-size: 0.85em; margin-top: 4px;">Формат: дд.мм.гггг</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes" data-i18n="notesLabel">Бележки (по избор)</label>
+                        <textarea id="notes" name="notes" rows="3" data-i18n-placeholder="notesPlaceholder"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" data-i18n="save">Запази</button>
+                        <button type="button" class="btn btn-secondary" id="btnCancel" data-i18n="cancel">Отказ</button>
+                    </div>
+
+                    <input type="hidden" id="recordId" name="recordId">
+                </form>
+            </div>
+        </div>
+        
+        <!-- Install Instructions Modal -->
+        <div class="modal" id="installModal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeInstallModal()">&times;</button>
+                <h2 id="installTitle">Добави към начален екран</h2>
+                <div id="installInstructions" style="padding: 1rem 0;">
+                    <!-- Instructions will be shown here -->
+                </div>
+                <button class="btn btn-primary" onclick="closeInstallModal()">Разбрах</button>
+            </div>
+        </div>
+
+        <!-- Child Code Modal -->
+        <div class="modal" id="childCodeModal">
+            <div class="modal-content">
+                <button class="modal-close" id="modalChildCodeClose">&times;</button>
+                <h2>👶 Код на детето</h2>
+                <div style="margin: 1.5rem 0;">
+                    <label for="childCodeInputModal" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Код:</label>
+                    <input type="text" id="childCodeInputModal" placeholder="Въведете код" data-generated="false" style="width: 100%; padding: 0.75rem; font-size: 1.2rem; text-align: center; text-transform: uppercase; border: 2px solid var(--primary-color); border-radius: 8px;" />
+                </div>
+                <div style="margin: 1.5rem 0;">
+                    <label for="childNameInputModal" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Име:</label>
+                    <input type="text" id="childNameInputModal" placeholder="Въведете име (напр. Кай)" style="width: 100%; padding: 0.75rem; font-size: 1.2rem; text-align: center; border: 2px solid var(--primary-color); border-radius: 8px;" />
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button class="btn btn-secondary" onclick="generateNewChildCode()" style="flex: 1;">🔄 Генерирай нов код</button>
+                    <button class="btn btn-primary" onclick="saveChildCodeAndName()" style="flex: 1;">✅ OK</button>
+                    <button class="btn btn-secondary" onclick="closeChildCodeModal()" style="flex: 1;">❌ Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version Info и Cache Management -->
+    <script>
+        const APP_VERSION = '14';
+        console.log('[Version] APP_VERSION:', APP_VERSION);
+        console.log('[Version] Current URL:', window.location.href);
+        console.log('[Version] Expected app_v2.js version: v=' + APP_VERSION);
+        
+        // Cache busting and force reload mechanism
+        (async function clearOldCache() {
+            console.log('[Cache] Изчистване на стари кешове...');
+            
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const reg of registrations) {
+                        console.log('[Cache] Намерен Service Worker:', reg.scope);
+                    }
+                } catch (e) {
+                    console.warn('[Cache] Грешка при проверка на Service Workers:', e);
+                }
+            }
+            
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    for (const name of cacheNames) {
+                        await caches.delete(name);
+                        console.log('[Cache] Кеш изчистен:', name);
+                    }
+                } catch (e) {
+                    console.warn('[Cache] Грешка при изчистване на кешове:', e);
+                }
+            }
+            
+            const currentVersion = localStorage.getItem('mamafood_version');
+            if (currentVersion && currentVersion !== APP_VERSION) {
+                console.log(`[Cache] Версия променена от ${currentVersion} на ${APP_VERSION}`);
+            }
+            localStorage.setItem('mamafood_version', APP_VERSION);
+            
+            console.log('[Cache] Изчистването приключи');
+        })();
+        
+        const VERSION_KEY = 'mamafood_version';
+        
+        // Check for version update
+        const storedVersion = localStorage.getItem(VERSION_KEY);
+        if (storedVersion && storedVersion !== APP_VERSION) {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    registrations.forEach(registration => registration.unregister());
+                });
+            }
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                });
+            }
+            localStorage.setItem(VERSION_KEY, APP_VERSION);
+            location.reload(true);
+        } else if (!storedVersion) {
+            localStorage.setItem(VERSION_KEY, APP_VERSION);
+        }
+        
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                if (window.location.protocol === 'file:') {
+                    console.log('Service Worker не може да се регистрира с file:// протокол.');
+                    return;
+                }
+                
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register(`./service-worker.js?v=${APP_VERSION}`)
+                        .then(registration => {
+                            console.log('Service Worker registered:', registration);
+                            setInterval(() => {
+                                registration.update();
+                            }, 3600000);
+                        })
+                        .catch(error => {
+                            console.log('Service Worker registration failed:', error);
+                        });
+                }
+            });
+        }
+        
+        // Function to clear all caches
+        function clearAllCaches() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    registrations.forEach(registration => registration.unregister());
+                });
+            }
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                });
+            }
+            localStorage.removeItem(VERSION_KEY);
+            location.reload(true);
+        }
+        
+        window.clearAllCaches = clearAllCaches;
+    </script>
+    <script>
+        const APP_VERSION = 14;
+        console.log('[Version] APP_VERSION:', APP_VERSION);
+        console.log('[Version] Current URL:', window.location.href);
+        console.log('[Version] Expected app_v2.js version: v=' + APP_VERSION);
+    </script>
+</body>
+</html>
