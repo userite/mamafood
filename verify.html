@@ -327,8 +327,11 @@
     async function ensureQrLibLoaded() {
       if (window.Html5Qrcode) return { ok: true, via: 'preloaded' };
       const candidates = [
-        'https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js',
-        'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/html5-qrcode.min.js'
+        // 1) локално (най-сигурно, не се блокира от CSP/AdBlock)
+        '/vendor/html5-qrcode.min.js',
+        // 2) fallback CDN
+        'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+        'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'
       ];
       let lastErr = null;
       for (const src of candidates) {

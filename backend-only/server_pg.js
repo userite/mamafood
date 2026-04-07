@@ -1899,6 +1899,14 @@ app.get(['/verify', '/verify/'], (req, res) => {
     res.sendFile(verifyPath);
 });
 
+// Локално хостната библиотека за QR сканиране (за да не зависи от CDN)
+app.get(['/vendor/html5-qrcode.min.js', '/vendor/html5-qrcode.min.js/'], (req, res) => {
+    const p = path.join(__dirname, '..', 'vendor', 'html5-qrcode.min.js');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(p);
+});
+
 // ============================================
 // Start Server
 // ============================================
