@@ -1560,6 +1560,35 @@ app.get('/api/identifiers/stored', async (req, res) => {
     }
 });
 
+// Търсене на идентификатор по code_value в БД (за verify страница)
+app.post('/api/identifiers/lookup', async (req, res) => {
+    const { code } = req.body || {};
+    const c = code != null ? String(code).trim() : '';
+    if (!c) {
+        return res.status(400).json({ ok: false, error: 'Задължително поле code' });
+    }
+
+    const client = await pool.connect();
+    try {
+        const { rows } = await client.query(
+            `SELECT id, code_type, code_value, human_description, code_group, created_at
+             FROM identifier_codes
+             WHERE code_value = $1
+             LIMIT 1`,
+            [c]
+        );
+        if (!rows.length) {
+            return res.json({ ok: true, found: false });
+        }
+        return res.json({ ok: true, found: true, row: rows[0] });
+    } catch (error) {
+        console.error('POST /api/identifiers/lookup:', error);
+        return res.status(500).json({ ok: false, error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
 // ============================================
 // Accounting Chart API (Счетоводен сметкоплан)
 // ============================================
@@ -1862,6 +1891,12 @@ app.delete('/api/accounting-chart/:id', async (req, res) => {
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, '..', 'index.html');
     res.sendFile(indexPath);
+});
+
+// Отделна страница за проверка на QR код
+app.get(['/verify', '/verify/'], (req, res) => {
+    const verifyPath = path.join(__dirname, '..', 'verify.html');
+    res.sendFile(verifyPath);
 });
 
 // ============================================

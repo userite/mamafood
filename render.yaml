@@ -3,7 +3,9 @@ services:
     name: mamafood-backend
     env: node
     plan: free
-    buildCommand: npm install
+    # backend-only/server_pg.js зарежда ../lib/identifier-service.js — Node търси uuid в repo root node_modules
+    rootDirectory: backend-only
+    buildCommand: cd .. && npm install && cd backend-only && npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV

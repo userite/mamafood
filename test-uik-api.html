@@ -350,13 +350,14 @@
             <button onclick="testIdentifiersGenerate()">⚡ Генерирай</button>
             <button class="secondary" onclick="testIdentifiersStoreToDb()">💾 Запис в БД</button>
             <button class="secondary" onclick="testIdentifiersValidate()">✔️ Валидирай последния код</button>
+            <button class="secondary" onclick="testIdentifiersValidateFromQrRaw()">✔️ Валидирай суров текст (QR скенер)</button>
             <button class="secondary" onclick="testIdentifiersParseQr()">🔍 Парсирай QR низ</button>
             <button class="secondary" onclick="testIdentifiersQrPng()">🖼️ PNG QR</button>
             <button class="secondary" onclick="saveIdentifiersQrPng()">💾 Запази PNG</button>
             <button class="secondary" onclick="testIdentifiersStored()">📋 Списък от БД</button>
 
-            <label for="id-parse-raw" style="margin-top:15px;">Суров текст от QR (parse-qr):</label>
-            <textarea id="id-parse-raw" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;" placeholder='Постави JSON от qrRawString или само код'></textarea>
+            <label for="id-parse-raw" style="margin-top:15px;">Суров текст от QR (както връща скенерът):</label>
+            <textarea id="id-parse-raw" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;" placeholder="Постави тук резултата от сканиране: целият JSON или само идентификаторът (ULID, UUID, CUID2, Snowflake…)"></textarea>
 
             <div id="id-result" style="margin-top:12px;"></div>
             </div>
@@ -1361,6 +1362,60 @@ ${errorMessage}${additionalInfo}
             }
         }
 
+        /**
+         * Входът е точно това, което QR скенерът връща: JSON с mf/t/c/d/g или само суров идентификатор.
+         * Стъпки: parse-qr → извлича c (и t) → validate за формат.
+         */
+        async function testIdentifiersValidateFromQrRaw() {
+            const apiBase = document.getElementById('api-base').value;
+            const resultDiv = document.getElementById('id-result');
+            const raw = document.getElementById('id-parse-raw').value;
+            if (raw == null || String(raw).trim() === '') {
+                resultDiv.innerHTML =
+                    '<div class="result error">Постави в полето текста, който скенерът е прочел от QR (или го въведи на ръка).</div>';
+                return;
+            }
+            resultDiv.innerHTML = '<div class="result">⏳ Парсване на суров текст → валидация на идентификатор...</div>';
+            try {
+                const parseRes = await fetch(`${apiBase}/api/identifiers/parse-qr`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw: String(raw) })
+                });
+                const parsed = await parseResponseJson(parseRes);
+                if (!parseRes.ok) throw new Error(parsed.error || parseRes.statusText);
+                if (!parsed.ok) {
+                    resultDiv.innerHTML =
+                        '<div class="result error"><strong>parse-qr:</strong> ' +
+                        JSON.stringify(parsed, null, 2) +
+                        '</div>';
+                    return;
+                }
+                const code = parsed.code;
+                const codeType = parsed.codeType || undefined;
+                const valRes = await fetch(`${apiBase}/api/identifiers/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code,
+                        codeType
+                    })
+                });
+                const validated = await parseResponseJson(valRes);
+                if (!valRes.ok) throw new Error(validated.error || valRes.statusText);
+                resultDiv.innerHTML =
+                    '<div class="result success"><strong>Суров вход (като от скенер):</strong>\n' +
+                    JSON.stringify({ rawLength: String(raw).length, preview: String(raw).slice(0, 120) }, null, 2) +
+                    '\n\n<strong>parse-qr (извлечен идентификатор):</strong>\n' +
+                    JSON.stringify(parsed, null, 2) +
+                    '\n\n<strong>validate (формат):</strong>\n' +
+                    JSON.stringify(validated, null, 2) +
+                    '</div>';
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
+            }
+        }
+
         async function testIdentifiersParseQr() {
             const apiBase = document.getElementById('api-base').value;
             const resultDiv = document.getElementById('id-result');
@@ -1441,6 +1496,40 @@ ${errorMessage}${additionalInfo}
             }
         }
 
+        /** Последно зареден списък от БД — за бутон „Валидирай“ по ред */
+        let _idLastStoredList = [];
+
+        function validateStoredIdentifierRow(index) {
+            const row = _idLastStoredList[index];
+            if (!row) {
+                alert('Няма данни за този ред. Зареди отново списъка от БД.');
+                return;
+            }
+            const payload = {
+                mf: 1,
+                t: row.code_type,
+                c: row.code_value,
+                d: row.human_description != null ? String(row.human_description) : '',
+                g: row.code_group != null ? String(row.code_group) : ''
+            };
+            document.getElementById('id-parse-raw').value = JSON.stringify(payload);
+            document.getElementById('id-human-desc').value = payload.d;
+            document.getElementById('id-code-group').value = payload.g;
+            const sel = document.getElementById('id-code-type');
+            if (sel && payload.t) {
+                const opt = Array.prototype.slice.call(sel.options).some(function (o) {
+                    return o.value === payload.t;
+                });
+                if (opt) sel.value = payload.t;
+            }
+            lastGeneratedIdentifier = row.code_value;
+            lastGeneratedCodeType = row.code_type || '';
+            testIdentifiersValidateFromQrRaw();
+            try {
+                document.getElementById('id-parse-raw').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (e) { /* ignore */ }
+        }
+
         async function testIdentifiersStored() {
             const apiBase = document.getElementById('api-base').value;
             const resultDiv = document.getElementById('id-result');
@@ -1449,7 +1538,66 @@ ${errorMessage}${additionalInfo}
                 const response = await fetch(`${apiBase}/api/identifiers/stored?limit=50`);
                 const data = await parseResponseJson(response);
                 if (!response.ok) throw new Error(data.error || response.statusText);
-                resultDiv.innerHTML = '<div class="result success">' + JSON.stringify(data, null, 2) + '</div>';
+                if (!Array.isArray(data)) {
+                    throw new Error('Очаква се масив от записи');
+                }
+                _idLastStoredList = data;
+
+                let tableHtml =
+                    '<div class="result success">' +
+                    '<p style="margin:0 0 10px;"><strong>Списък от БД</strong> — избери ред с <strong>Валидирай</strong>: попълва полето като от QR и пуска проверка (не е нужен запазен PNG файл).</p>' +
+                    '<div style="overflow-x:auto;">' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #c3e6cb;">' +
+                    '<thead><tr style="background:#e8f5e9;text-align:left;">' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">#</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">Тип</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">Код</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">Описание</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">Група</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;">Дата</th>' +
+                    '<th style="padding:8px;border:1px solid #c3e6cb;"></th>' +
+                    '</tr></thead><tbody>';
+
+                data.forEach(function (row, i) {
+                    const created = row.created_at
+                        ? String(row.created_at).replace('T', ' ').slice(0, 19)
+                        : '—';
+                    tableHtml +=
+                        '<tr>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;">' +
+                        escapeHtml(String(row.id)) +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;white-space:nowrap;">' +
+                        escapeHtml(row.code_type || '') +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;word-break:break-all;max-width:220px;">' +
+                        escapeHtml(row.code_value || '') +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;">' +
+                        escapeHtml(row.human_description || '') +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;">' +
+                        escapeHtml(row.code_group || '') +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;font-size:12px;">' +
+                        escapeHtml(created) +
+                        '</td>' +
+                        '<td style="padding:6px 8px;border:1px solid #e0e0e0;vertical-align:top;">' +
+                        '<button type="button" class="secondary" style="padding:6px 10px;font-size:13px;white-space:nowrap;" onclick="validateStoredIdentifierRow(' +
+                        i +
+                        ')">Валидирай</button>' +
+                        '</td>' +
+                        '</tr>';
+                });
+
+                tableHtml += '</tbody></table></div>';
+                tableHtml +=
+                    '<details style="margin-top:12px;"><summary style="cursor:pointer;">Пълен JSON</summary>' +
+                    '<pre style="margin:8px 0 0;white-space:pre-wrap;font-size:12px;">' +
+                    escapeHtml(JSON.stringify(data, null, 2)) +
+                    '</pre></details></div>';
+
+                resultDiv.innerHTML = tableHtml;
             } catch (error) {
                 resultDiv.innerHTML = '<div class="result error">Грешка: ' + error.message + '</div>';
             }
