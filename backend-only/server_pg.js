@@ -187,12 +187,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files from parent directory (for local testing)
-// In production, frontend will be served separately
-if (process.env.NODE_ENV !== 'production' || process.env.SERVE_STATIC === 'true') {
-    app.use(express.static(path.join(__dirname, '..')));
-    console.log('📁 Static files enabled (dev mode)');
-}
+// Frontend + API на един Render service: статичните файлове са в repo root (parent на backend-only/)
+// Преди: в production static беше изключен → index.html се сервираше, но app_v2.js/uik.js → 404
+const staticRoot = path.join(__dirname, '..');
+app.use(express.static(staticRoot));
+console.log('📁 Static files from:', staticRoot);
 
 // Error handler for JSON parsing
 app.use((err, req, res, next) => {

@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Проверка на QR код</title>
+  <title>
+		BG16RFPR001-1.003-0666-C01 <br>Иновативна система за генериране на универсален идентификационен ключ (СГУИК)
+		<br>ИНЕКС-Проект ООД
+  </title>
   <style>
     :root{
       --bg:#0b1020;
@@ -221,7 +224,10 @@
   <div class="wrap">
     <header>
       <div>
-        <h1>Проверка на QR код</h1>
+        <h1>
+			BG16RFPR001-1.003-0666-C01 <br>Иновативна система за генериране на универсален идентификационен ключ (СГУИК)
+		<br>ИНЕКС-Проект ООД
+		</h1>
         <div class="sub">
           Сканирай с камера или постави текста от QR скенер. Страницата проверява <strong>валидност</strong> и показва <strong>данни от БД</strong>, ако кодът е записан.
         </div>
@@ -327,9 +333,11 @@
     async function ensureQrLibLoaded() {
       if (window.Html5Qrcode) return { ok: true, via: 'preloaded' };
       const candidates = [
-        // 1) локално (най-сигурно, не се блокира от CSP/AdBlock)
-        '/vendor/html5-qrcode.min.js',
-        // 2) fallback CDN
+        // 1) Render backend (не е CDN и е най-надеждно при pci proxy, който връща HTML за /vendor/*)
+        'https://mamafood.onrender.com/vendor/html5-qrcode.min.js?v=2.3.8',
+        // 2) локално (ако /verify се сервира от backend-а)
+        '/vendor/html5-qrcode.min.js?v=2.3.8',
+        // 3) fallback CDN
         'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
         'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'
       ];
